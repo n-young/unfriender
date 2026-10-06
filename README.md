@@ -26,6 +26,14 @@ tailscale serve --bg 3000
 
 Use the exact HTTPS URL printed by Tailscale. Do not use Funnel. The computer must remain awake and connected to the tailnet.
 
+On the owner's current machine, port 443 remains assigned to Tutalage and Dockge uses 8443. Social Cleanup is therefore published separately with:
+
+```sh
+tailscale serve --bg --https=8444 3000
+```
+
+Its installed PWA origin is `https://tutor.salmon-pleco.ts.net:8444/`. The matching `APP_ORIGIN` value must include `:8444`.
+
 ### Docker Compose / Dockge
 
 The normal always-on deployment is the checked-in Compose stack:
@@ -37,7 +45,9 @@ The normal always-on deployment is the checked-in Compose stack:
 
 It builds `social-cleanup-app:local`, publishes only `127.0.0.1:3000`, persists session/database state in the ignored `.data/` directory, runs with a read-only root filesystem and dropped Linux capabilities, and exposes a container-local health check.
 
-The existing Dockge instance deliberately does not mount `~/Programming`: its Docker-socket access makes every added host mount highly privileged. A runtime-only copy of `deployment/dockge.compose.yaml` can instead live inside Dockge's existing stacks directory with its own private `.env` and `data/`. Dockge can start, stop, recreate, and inspect the local image without reading the source tree. Rebuild `social-cleanup-app:local` from this repository before recreating the Dockge stack after a code change.
+For Dockge installations that should not mount `~/Programming`, a runtime-only copy of `deployment/dockge.compose.yaml` can instead live inside Dockge's existing stacks directory with its own private `.env` and `data/`. Dockge can then start, stop, recreate, and inspect the local image without reading the source tree. Rebuild `social-cleanup-app:local` from this repository before recreating that runtime-only stack after a code change.
+
+On the owner's current machine, broader access was explicitly approved. Dockge mounts `~/Programming`, and its existing stacks tree contains `unfriender`, a symlink to this repository. This makes the checked-in `compose.yaml` the stack Dockge operates while preserving the requested repository location.
 
 Headed platform login remains a host-side command (`npm run login -- <platform>`), because a Dockge-managed container has no Mac desktop session. The resulting ignored `.data/` directory is mounted into the app container. Real adapters remain fail-closed until their API spike is verified.
 
