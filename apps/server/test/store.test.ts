@@ -62,7 +62,8 @@ test("wrong acting account pauses without mutation",async()=>{
   store.createBatch("b1111111-1111-4111-8111-111111111111",[d.id],0,0);store.connectAccount("linkedin","different-owner");
   const adapters=new Map<Platform,FakeAdapter>();for(const p of ["linkedin","facebook","instagram"] as const)adapters.set(p,new FakeAdapter(p,2));
   await new RemovalWorker(store,adapters,0).tick(1);
-  assert.equal((store.removals() as any[])[0].state,"paused");store.close();
+  const removal=(store.removals() as any[])[0];assert.equal(removal.state,"paused");
+  assert.doesNotThrow(()=>store.resumeBatch(removal.batchId,2,10));store.close();
 });
 
 test("sync rejects profile URLs outside the platform allowlist",()=>{

@@ -12,6 +12,7 @@
     "typecheck": "npm run build -w @social-cleanup/shared && npm run typecheck -w @social-cleanup/web && npm run typecheck -w @social-cleanup/server",
     "login": "tsx scripts/login.ts",
     "session:export": "tsx scripts/export-session.ts",
+    "live-test:instagram": "tsx scripts/live-test-instagram-removal.ts",
     "spike:linkedin": "tsx scripts/spike-linkedin.ts",
     "spike:facebook": "tsx scripts/spike-platform.ts facebook",
     "spike:instagram": "tsx scripts/spike-platform.ts instagram",

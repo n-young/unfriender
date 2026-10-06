@@ -32,4 +32,7 @@ Source inspected: `dilame/instagram-private-api` friendship repository, plus the
 
 - Candidate request: `POST /api/v1/friendships/destroy/<numeric-user-id>/`.
 - Current discovery already uses numeric IDs and the observed web following cursor endpoint.
-- Required next step: capture the current web request form/headers for one exact target. Do not assume the older mobile client's signed form is accepted by the current web session.
+- Live canary: one explicitly authorized staged target was unfollowed once through the current web UI and independently verified with `GET /api/v1/friendships/show/<numeric-user-id>/` returning `following: false`.
+- Proven fallback selectors: exact `Following` text inside its nearest native button, followed by exact `Unfollow` text inside the single dialog's nearest `role=button` element.
+- The mutation response did not match the expected REST paths and was not captured. The browser fallback is verified; a direct HTTP adapter is not. Do not assume the older mobile client's signed form is accepted by the current web session.
+- `scripts/live-test-instagram-removal.ts` is a guarded one-target diagnostic. It requires an exact handle, a matching draft or one-member paused batch, a 10-second grace window, one dispatch, and independent reconciliation.

@@ -258,7 +258,7 @@ export class Store {
         r.target_key AS targetKey,r.profile_url AS profileUrl,r.attempt
       FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.state='ready'
         AND COALESCE(r.retry_after_ms,0)<=? AND COALESCE(a.mutation_backoff_until_ms,0)<=?
-        ORDER BY r.id LIMIT 1`).get(nowMs,nowMs) as ClaimedRemoval|undefined;
+        ORDER BY r.id LIMIT 1`).get(nowMs,nowMs) as unknown as ClaimedRemoval|undefined;
       if (!row) return undefined;
       const changed = this.db.prepare(`UPDATE removals SET state='executing',attempt=attempt+1,started_at=datetime('now') WHERE id=? AND state='ready'`).run(row.id);
       if (changed.changes !== 1) return undefined;
@@ -268,8 +268,10 @@ export class Store {
   }
 
   completeRemoval(id: number, state: "removed"|"already_absent"|"paused"|"unknown", result?: string, error?: string) {
-    this.db.prepare(`UPDATE removals SET state=?,completed_at=datetime('now'),result=?,error=?,retry_after_ms=NULL WHERE id=? AND state='executing'`)
+    const changed=this.db.prepare(`UPDATE removals SET state=?,completed_at=datetime('now'),result=?,error=?,retry_after_ms=NULL WHERE id=? AND state='executing'`)
       .run(state,result ?? null,error ?? null,id);
+    if(state==="paused"&&changed.changes===1)this.db.prepare("UPDATE batches SET state='paused' WHERE id=(SELECT batch_id FROM removals WHERE id=?) AND state='scheduled'").run(id);
+    return changed;
   }
 
   deferRemoval(id:number,retryAfterMs:number,error:string){
