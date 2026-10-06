@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DeckCard, Platform } from "@social-cleanup/shared";
 
 type Account = { platform:Platform; connectionState:string; scanState:string; lastSyncAt?:string };
-type Removal = {id:number;decisionId:number;batchId?:number;platform:Platform;targetKey:string;displayName:string;handle?:string;profileUrl:string;state:string;executeAfterMs?:number;result?:string;error?:string};
+type Removal = {id:number;decisionId:number;batchId?:number;platform:Platform;targetKey:string;displayName:string;handle?:string;profileUrl:string;state:string;executeAfterMs?:number;result?:string;error?:string;retryable?:number};
 const labels:Record<Platform,string>={linkedin:"LinkedIn",facebook:"Facebook",instagram:"Instagram"};
 
 async function api<T>(url:string,init?:RequestInit):Promise<T>{
@@ -20,6 +20,7 @@ export function App(){
   const drafts=useMemo(()=>removals.filter(r=>r.state==="draft"),[removals]);
   const active=useMemo(()=>removals.filter(r=>["scheduled","ready","executing","paused","unknown"].includes(r.state)),[removals]);
   const visibleRemovals=useMemo(()=>removals.filter(r=>["draft","scheduled","ready","executing","paused","unknown"].includes(r.state)),[removals]);
+  const retryable=useMemo(()=>removals.filter(r=>r.state==="paused"&&Boolean(r.retryable)&&adapterReady[r.platform]),[removals,adapterReady]);
   const canApply=drafts.length>0&&drafts.every(removal=>adapterReady[removal.platform]);
 
   const refresh=useCallback(async()=>{try{const [s,d,r]=await Promise.all([api<any>("/api/status"),api<any>("/api/deck?limit=50"),api<any>("/api/removals")]);setAccounts(s.accounts);setAdapterReady(Object.fromEntries(Object.entries(s.adapters??{}).map(([platform,value])=>[platform,Boolean((value as any).verified)])) as Record<Platform,boolean>);setCards(d.cards);setRemovals(r.removals);setOnline(true);setError("")}catch(e){setOnline(false);setError(e instanceof Error?e.message:String(e))}},[]);
@@ -31,6 +32,8 @@ export function App(){
   }
   async function undo(){setBusy(true);try{await api("/api/undo",{method:"POST",body:"{}"});await refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
   async function apply(){setBusy(true);try{await api("/api/batches",{method:"POST",body:JSON.stringify({operationId:crypto.randomUUID(),decisionIds:drafts.map(r=>r.decisionId)})});await refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
+  async function resumeOne(id:number){setBusy(true);try{await api(`/api/removals/${id}/resume`,{method:"POST",body:"{}"});await refresh()}catch(e){setError(e instanceof Error?e.message:String(e));await refresh()}finally{setBusy(false)}}
+  async function retryAll(){setBusy(true);try{await api("/api/removals/retry-all",{method:"POST",body:"{}"});await refresh()}catch(e){setError(e instanceof Error?e.message:String(e));await refresh()}finally{setBusy(false)}}
   async function accountAction(platform:Platform,action:"connect"|"sync"|"disconnect"){setBusy(true);try{await api(`/api/accounts/${platform}/${action}`,{method:"POST",body:"{}"});if(action==="connect")await api(`/api/accounts/${platform}/sync`,{method:"POST",body:"{}"});await refresh()}catch(e){setError(e instanceof Error?e.message:String(e))}finally{setBusy(false)}}
 
   function release(){if(drag>90)void decide("keep");else if(drag< -90)void decide("remove");else setDrag(0);startX.current=null}
@@ -50,6 +53,6 @@ export function App(){
     </section>
     <nav className="actions"><button className="removeButton" disabled={!card||busy||!online} onClick={()=>void decide("remove")} aria-label="Stage removal">×</button><div className="secondaryActions" style={{display:"flex",alignItems:"center",gap:8}}><button className="skipButton" disabled={!card||busy||!online} onClick={()=>void decide("skip")}>Skip</button><button className="undo skipButton" disabled={busy||!online} onClick={()=>void undo()}>↶ Undo</button></div><button className="keepButton" disabled={!card||busy||!online} onClick={()=>void decide("keep")} aria-label="Keep">♥</button></nav>
     <section className="tray"><div><span>Staged removals</span><strong>{drafts.length}</strong></div><button disabled={!canApply||busy||!online} onClick={()=>void apply()}>{drafts.length&&!canApply?"Removal setup pending":`Apply ${drafts.length||""} removals`}</button></section>
-    {visibleRemovals.length>0&&<section className="pending"><h2>Staged & pending</h2>{visibleRemovals.map(r=><div className="pendingRow" key={r.id}><span className={`badge ${r.platform}`}>{labels[r.platform]}</span><span>{r.displayName}{r.handle&&<small> @{r.handle}</small>}</span><b>{r.state}</b>{r.state==="paused"&&r.batchId&&adapterReady[r.platform]?<button onClick={()=>void api(`/api/batches/${r.batchId}/resume`,{method:"POST",body:"{}"}).then(refresh)}>Resume</button>:["draft","scheduled","ready"].includes(r.state)?<button onClick={()=>void api(`/api/removals/${r.id}/cancel`,{method:"POST",body:"{}"}).then(refresh)}>Cancel</button>:null}{r.error&&<small>{r.error}</small>}</div>)}</section>}
+    {visibleRemovals.length>0&&<section className="pending"><div className="pendingHeader"><h2>Staged & pending</h2>{retryable.length>0&&<button disabled={busy||!online} onClick={()=>void retryAll()}>Retry all ({retryable.length})</button>}</div>{visibleRemovals.map(r=><div className="pendingRow" key={r.id}><span className={`badge ${r.platform}`}>{labels[r.platform]}</span><span>{r.displayName}{r.handle&&<small> @{r.handle}</small>}</span><b>{r.state}</b>{r.state==="paused"&&Boolean(r.retryable)&&adapterReady[r.platform]?<button disabled={busy||!online} onClick={()=>void resumeOne(r.id)}>Resume</button>:["draft","scheduled","ready"].includes(r.state)?<button disabled={busy||!online} onClick={()=>void api(`/api/removals/${r.id}/cancel`,{method:"POST",body:"{}"}).then(refresh)}>Cancel</button>:null}{r.error&&<small>{r.error}</small>}</div>)}</section>}
   </main>
 }

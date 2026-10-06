@@ -106,7 +106,9 @@ export function buildApp(options: AppOptions) {
     const body = BatchInputSchema.parse(request.body);
     return options.store.createBatch(body.operationId,body.decisionIds,Date.now(),options.graceMs);
   });
+  app.post("/api/removals/retry-all", async () => options.store.retryAllPaused(Date.now(),options.graceMs));
   app.post("/api/removals/:id/cancel", async (request) => options.store.cancelRemoval(Number((request.params as any).id)));
+  app.post("/api/removals/:id/resume", async (request) => options.store.resumeRemoval(Number((request.params as any).id),Date.now(),options.graceMs));
   app.post("/api/batches/:id/cancel", async (request) => options.store.cancelBatch(Number((request.params as any).id)));
   app.post("/api/batches/:id/resume", async (request) => options.store.resumeBatch(Number((request.params as any).id),Date.now(),options.graceMs));
 

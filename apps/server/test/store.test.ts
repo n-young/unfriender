@@ -122,3 +122,20 @@ test("unknown work is reconciled read-only before another mutation",async()=>{
   assert.match((store.removals() as any[]).find(item=>item.error?.includes("reconciliation"))?.error??"",/reconciliation/);
   store.close();
 });
+
+test("resuming one paused removal leaves its batch peers paused",()=>{
+  const store=setup();const cards=store.deck(2) as any[];
+  const decisions=cards.map((card,index)=>store.decide({operationId:`${index+3}7111111-1111-4111-8111-111111111111`,connectionId:card.id,version:card.version,kind:"remove"}));
+  store.createBatch("39111111-1111-4111-8111-111111111111",decisions.map(item=>item.id),0,0);store.pauseStaleOnStartup();
+  const rows=store.removals() as any[];store.resumeRemoval(rows[0].id,100,10);
+  assert.deepEqual((store.removals() as any[]).map(item=>item.state).sort(),["paused","scheduled"]);
+  assert.equal(store.claimNext(109),undefined);assert.equal(store.claimNext(110)?.id,rows[0].id);store.close();
+});
+
+test("retry all schedules every paused removal bound to the current sessions",()=>{
+  const store=setup();const cards=store.deck(3) as any[];
+  const decisions=cards.map((card,index)=>store.decide({operationId:`${index+4}0111111-1111-4111-8111-111111111111`,connectionId:card.id,version:card.version,kind:"remove"}));
+  store.createBatch("43111111-1111-4111-8111-111111111111",decisions.map(item=>item.id),0,0);store.pauseStaleOnStartup();
+  const result=store.retryAllPaused(200,10);assert.deepEqual(result,{count:3,skipped:0,executeAfterMs:210});
+  assert.deepEqual((store.removals() as any[]).map(item=>item.state),["scheduled","scheduled","scheduled"]);store.close();
+});

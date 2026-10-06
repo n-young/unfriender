@@ -139,6 +139,9 @@ h1 { margin: 0; font: bold 27px/1 Arial, sans-serif; letter-spacing: -.9px; }
 .tray button { padding: 9px 11px; color: #fff; background: #42b72a; border: 1px solid #3a9c27; border-radius: 2px; font-weight: bold; }
 .pending { margin-top: 15px; padding: 14px; background: #fff; border: 1px solid var(--border); border-radius: 3px; box-shadow: 0 1px 2px #0000001a; }
 .pending h2 { margin: 0 0 10px; color: var(--facebook-dark); font-size: 15px; }
+.pendingHeader { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.pendingHeader h2 { margin: 0; }
+.pendingHeader button { color: #fff; background: #4267b2; border-color: #29487d; font-weight: bold; }
 .pendingRow { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 9px 0; border-top: 1px solid #e9ebee; font-size: 12px; }
 .pendingRow small { grid-column: 1/-1; color: #a33; }
 

@@ -61,7 +61,7 @@ export class Store {
         target_key TEXT NOT NULL, profile_url TEXT NOT NULL, acting_account_key TEXT NOT NULL,
         session_generation INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'draft',
         attempt INTEGER NOT NULL DEFAULT 0, started_at TEXT, completed_at TEXT,
-        result TEXT, error TEXT
+        result TEXT, error TEXT, execute_after_ms INTEGER
       );
       CREATE UNIQUE INDEX IF NOT EXISTS one_live_removal ON removals(account_id,target_key)
         WHERE state IN ('draft','scheduled','ready','executing','paused','unknown');
@@ -70,6 +70,7 @@ export class Store {
     if(!accountColumns.has("mutation_backoff_until_ms"))this.db.exec("ALTER TABLE accounts ADD COLUMN mutation_backoff_until_ms INTEGER");
     const removalColumns=new Set((this.db.prepare("PRAGMA table_info(removals)").all() as {name:string}[]).map(column=>column.name));
     if(!removalColumns.has("retry_after_ms"))this.db.exec("ALTER TABLE removals ADD COLUMN retry_after_ms INTEGER");
+    if(!removalColumns.has("execute_after_ms"))this.db.exec("ALTER TABLE removals ADD COLUMN execute_after_ms INTEGER");
     for (const platform of ["linkedin", "facebook", "instagram"]) {
       this.db.prepare("INSERT OR IGNORE INTO accounts(platform) VALUES (?)").run(platform);
     }
@@ -220,7 +221,7 @@ export class Store {
       const deadline = nowMs + graceMs;
       const batch = this.db.prepare("INSERT INTO batches(operation_id,applied_at,execute_after_ms) VALUES (?,datetime('now'),?)").run(operationId,deadline);
       const batchId = Number(batch.lastInsertRowid);
-      this.db.prepare(`UPDATE removals SET batch_id=?,state='scheduled' WHERE decision_id IN (${placeholders})`).run(batchId,...unique);
+      this.db.prepare(`UPDATE removals SET batch_id=?,state='scheduled',execute_after_ms=? WHERE decision_id IN (${placeholders})`).run(batchId,deadline,...unique);
       return { id: batchId, executeAfterMs: deadline };
     });
   }
@@ -257,13 +258,14 @@ export class Store {
 
   claimNext(nowMs: number): ClaimedRemoval | undefined {
     return this.transaction(() => {
-      this.db.prepare("UPDATE removals SET state='ready' WHERE state='scheduled' AND batch_id IN (SELECT id FROM batches WHERE execute_after_ms<=? AND state='scheduled')").run(nowMs);
+      this.db.prepare(`UPDATE removals SET state='ready' WHERE state='scheduled'
+        AND COALESCE(execute_after_ms,(SELECT execute_after_ms FROM batches WHERE id=removals.batch_id))<=?`).run(nowMs);
       const row = this.db.prepare(`SELECT r.id,r.decision_id AS decisionId,r.account_id AS accountId,a.platform,
         r.acting_account_key AS actingAccountKey,r.session_generation AS sessionGeneration,
         r.target_key AS targetKey,r.profile_url AS profileUrl,r.attempt
       FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.state='ready'
-        AND COALESCE(r.retry_after_ms,0)<=? AND COALESCE(a.mutation_backoff_until_ms,0)<=?
-        ORDER BY r.id LIMIT 1`).get(nowMs,nowMs) as unknown as ClaimedRemoval|undefined;
+        AND COALESCE(r.execute_after_ms,0)<=? AND COALESCE(r.retry_after_ms,0)<=? AND COALESCE(a.mutation_backoff_until_ms,0)<=?
+        ORDER BY r.id LIMIT 1`).get(nowMs,nowMs,nowMs) as unknown as ClaimedRemoval|undefined;
       if (!row) return undefined;
       const changed = this.db.prepare(`UPDATE removals SET state='executing',attempt=attempt+1,started_at=datetime('now') WHERE id=? AND state='ready'`).run(row.id);
       if (changed.changes !== 1) return undefined;
@@ -326,19 +328,57 @@ export class Store {
 
   resumeBatch(id: number, nowMs: number, graceMs: number) {
     return this.transaction(() => {
-      const batch = this.db.prepare("SELECT id FROM batches WHERE id=? AND state='paused'").get(id);
-      if (!batch) throw new ConflictError("batch is not paused");
+      const batch = this.db.prepare("SELECT id FROM batches WHERE id=?").get(id);
+      if (!batch) throw new NotFoundError("batch not found");
+      const paused=Number((this.db.prepare("SELECT COUNT(*) AS count FROM removals WHERE batch_id=? AND state='paused'").get(id) as {count:number}).count);
+      if(!paused)throw new ConflictError("batch has no paused removals");
       const deadline = nowMs + graceMs;
       this.db.prepare("UPDATE batches SET state='scheduled',execute_after_ms=? WHERE id=?").run(deadline,id);
-      this.db.prepare("UPDATE removals SET state='scheduled',error=NULL WHERE batch_id=? AND state='paused'").run(id);
-      return { id, executeAfterMs: deadline };
+      this.db.prepare("UPDATE removals SET state='scheduled',started_at=NULL,completed_at=NULL,result=NULL,error=NULL,retry_after_ms=NULL,execute_after_ms=? WHERE batch_id=? AND state='paused'").run(deadline,id);
+      return { id, count:paused, executeAfterMs: deadline };
+    });
+  }
+
+  resumeRemoval(id:number,nowMs:number,graceMs:number){
+    return this.transaction(()=>{
+      const row=this.db.prepare(`SELECT r.id,r.batch_id AS batchId,r.acting_account_key AS actingAccountKey,
+        r.session_generation AS sessionGeneration,a.acting_account_key AS currentAccountKey,
+        a.session_generation AS currentGeneration,a.connection_state AS connectionState
+        FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.id=? AND r.state='paused'`).get(id) as any;
+      if(!row)throw new ConflictError("removal is not paused");
+      if(row.connectionState!=="connected"||row.actingAccountKey!==row.currentAccountKey||row.sessionGeneration!==row.currentGeneration){
+        throw new ConflictError("removal belongs to an older account session; cancel it and stage the relationship again");
+      }
+      const deadline=nowMs+graceMs;
+      this.db.prepare(`UPDATE removals SET state='scheduled',started_at=NULL,completed_at=NULL,result=NULL,
+        error=NULL,retry_after_ms=NULL,execute_after_ms=? WHERE id=?`).run(deadline,id);
+      if(row.batchId)this.db.prepare("UPDATE batches SET state='scheduled' WHERE id=?").run(row.batchId);
+      return {id,executeAfterMs:deadline};
+    });
+  }
+
+  retryAllPaused(nowMs:number,graceMs:number){
+    return this.transaction(()=>{
+      const deadline=nowMs+graceMs;
+      const eligible=this.db.prepare(`SELECT r.id FROM removals r JOIN accounts a ON a.id=r.account_id
+        WHERE r.state='paused' AND a.connection_state='connected'
+        AND r.acting_account_key=a.acting_account_key AND r.session_generation=a.session_generation`).all() as {id:number}[];
+      for(const row of eligible)this.db.prepare(`UPDATE removals SET state='scheduled',started_at=NULL,completed_at=NULL,
+        result=NULL,error=NULL,retry_after_ms=NULL,execute_after_ms=? WHERE id=? AND state='paused'`).run(deadline,row.id);
+      this.db.prepare(`UPDATE batches SET state='scheduled' WHERE id IN
+        (SELECT DISTINCT batch_id FROM removals WHERE state='scheduled' AND batch_id IS NOT NULL)`).run();
+      const total=Number((this.db.prepare("SELECT COUNT(*) AS count FROM removals WHERE state='paused'").get() as {count:number}).count);
+      return {count:eligible.length,skipped:total,executeAfterMs:deadline};
     });
   }
 
   removals() {
     return this.db.prepare(`SELECT r.id,r.decision_id AS decisionId,r.batch_id AS batchId,a.platform,
       r.target_key AS targetKey,r.profile_url AS profileUrl,c.display_name AS displayName,c.handle,r.state,r.attempt,r.started_at AS startedAt,
-      r.completed_at AS completedAt,r.result,r.error,r.retry_after_ms AS retryAfterMs,b.execute_after_ms AS executeAfterMs
+      r.completed_at AS completedAt,r.result,r.error,r.retry_after_ms AS retryAfterMs,
+      COALESCE(r.execute_after_ms,b.execute_after_ms) AS executeAfterMs,
+      CASE WHEN r.state='paused' AND a.connection_state='connected' AND r.acting_account_key=a.acting_account_key
+        AND r.session_generation=a.session_generation THEN 1 ELSE 0 END AS retryable
       FROM removals r JOIN accounts a ON a.id=r.account_id JOIN decisions d ON d.id=r.decision_id
       JOIN connections c ON c.id=d.connection_id LEFT JOIN batches b ON b.id=r.batch_id ORDER BY r.id DESC`).all();
   }
