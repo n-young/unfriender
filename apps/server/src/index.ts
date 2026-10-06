@@ -10,7 +10,7 @@ import { RemovalWorker } from "./worker.js";
 mkdirSync(config.dataDir,{recursive:true,mode:0o700});
 const releaseLock = acquireInstanceLock(config.dataDir);
 const store = new Store(path.join(config.dataDir,"social-cleanup.sqlite"));
-const adapters = createAdapters(config.fakeAdapters);
+const adapters = createAdapters(config.fakeAdapters,config.dataDir);
 const worker = new RemovalWorker(store,adapters,config.mutationIntervalMs);
 const app = buildApp({...config,store,adapters});
 worker.start();

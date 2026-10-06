@@ -7,6 +7,7 @@ import type { Platform } from "@social-cleanup/shared";
 import type { Store } from "./store.js";
 import { ConflictError, NotFoundError } from "./store.js";
 import type { PlatformAdapter } from "./adapters/types.js";
+import { AdapterUnavailableError } from "./adapters/types.js";
 
 export interface AppOptions {
   store: Store;
@@ -37,6 +38,7 @@ export function buildApp(options: AppOptions) {
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ConflictError) return reply.code(409).send({error:error.message});
     if (error instanceof NotFoundError) return reply.code(404).send({error:error.message});
+    if (error instanceof AdapterUnavailableError) return reply.code(503).send({error:error.message});
     if ((error as any).issues) return reply.code(400).send({error:"invalid request",issues:(error as any).issues});
     app.log.error(error);
     return reply.code(500).send({error:"internal error"});
@@ -56,7 +58,6 @@ export function buildApp(options: AppOptions) {
   app.post("/api/accounts/:platform/connect", async (request, reply) => {
     const platform = PlatformSchema.parse((request.params as any).platform);
     const adapter = options.adapters.get(platform)!;
-    if (!options.fakeAdapters) return reply.code(501).send({error:"complete login on this computer with npm run login -- " + platform});
     const identity = await adapter.checkSession();
     options.store.connectAccount(platform,identity.actingAccountKey);
     return {connected:true,identity};
@@ -69,7 +70,7 @@ export function buildApp(options: AppOptions) {
   });
   app.post("/api/accounts/:platform/sync", async (request) => {
     const platform = PlatformSchema.parse((request.params as any).platform);
-    const page = await options.adapters.get(platform)!.discover(null,25);
+    const page = await options.adapters.get(platform)!.discover(options.store.accountScanCursor(platform),25);
     const count = options.store.sync(platform,page.relationships,page.nextCursor,page.complete);
     return {count,...page};
   });

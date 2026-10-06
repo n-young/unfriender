@@ -83,9 +83,14 @@ export class Store {
       scan_state AS scanState,last_sync_at AS lastSyncAt,error FROM accounts ORDER BY id`).all();
   }
 
+  accountScanCursor(platform: Platform) {
+    const row=this.db.prepare("SELECT scan_cursor AS scanCursor FROM accounts WHERE platform=?").get(platform) as {scanCursor:string|null}|undefined;
+    return row?.scanCursor??null;
+  }
+
   connectAccount(platform: Platform, actingAccountKey: string) {
     this.db.prepare(`UPDATE accounts SET acting_account_key=?,session_generation=session_generation+1,
-      connection_state='connected',error=NULL WHERE platform=?`).run(actingAccountKey, platform);
+      connection_state='connected',scan_cursor=NULL,scan_state='idle',error=NULL WHERE platform=?`).run(actingAccountKey, platform);
   }
 
   disconnectAccount(platform: Platform) {

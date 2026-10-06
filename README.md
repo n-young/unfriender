@@ -71,6 +71,15 @@ npm run login -- instagram
 
 Profiles stay under `.data/profiles/` with private directory permissions and are ignored by Git. The PWA never asks for platform passwords. Complete the spike checklist before wiring any private request.
 
+LinkedIn has a verified read-only bridge. After login, close the dedicated browser and run:
+
+```sh
+npm run spike:linkedin
+npm run sync:linkedin
+```
+
+The sync verifies `/voyager/api/me`, discovers a bounded set of connection cards from LinkedIn's authenticated page, and writes a private partial snapshot to `.data/platform-cache/linkedin.json`. In the PWA, select LinkedIn **Connect** and then **Sync** to load that snapshot into SQLite. LinkedIn removal remains disabled until one exact test target and its postcondition are verified.
+
 ## Commands
 
 - `npm run dev` — local web/server development with fake adapters.
