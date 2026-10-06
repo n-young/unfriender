@@ -105,7 +105,7 @@ async function relationshipPresent(page:Page){
   try{await openRelationshipMenu(page);await page.keyboard.press("Escape");return true;}
   catch(error){
     const absent=platform==="linkedin"
-      ? (await visible(page.getByRole("button",{name:/^connect$/i}))).length>0
+      ? (await visible(page.getByText("Connect",{exact:true}).locator("xpath=ancestor::button[1]"))).length>0
       : (await visible(page.getByText(/^add friend$/i))).length>0;
     if(absent)return false;
     throw error;

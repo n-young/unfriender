@@ -23,9 +23,9 @@ npm run spike:instagram
 
 These probes are read-only. They record endpoint and DOM shapes only. Complete snapshots are implemented for all three platforms: LinkedIn and Facebook accumulate cards across their virtualized pages, while Instagram follows the observed `/api/v1/friendships/<account-id>/following/` cursor.
 
-As of October 6, 2026, one Instagram **Following → Unfollow** canary and one Facebook **Friends → Unfriend** canary were dispatched once and independently verified absent. Their browser-backed adapters are enabled. LinkedIn's acting-account, target-page, and **More → Remove connection** dry-run checks pass, but no LinkedIn mutation has been approved or verified, so that adapter remains read-only.
+As of October 6, 2026, one Instagram **Following → Unfollow** canary, one Facebook **Friends → Unfriend** canary, and one LinkedIn **More → Remove connection** canary were dispatched once and independently verified absent. LinkedIn required a delayed fresh-page reconciliation because its immediate page still exposed stale relationship state. All three browser-backed adapters are enabled.
 
-The Facebook browser canary observed `FriendingCometUnfriendMutation`; the Instagram mutation endpoint was not reliably surfaced by the browser response listener, so the adapter intentionally keeps the proven UI fallback and verifies through the read-only friendship endpoint. The LinkedIn private operation remains only an investigation lead until its live canary is explicitly approved.
+The Facebook browser canary observed `FriendingCometUnfriendMutation`; Instagram and LinkedIn mutation endpoints were not reliably surfaced by the browser response listeners, so those adapters intentionally keep the proven UI fallbacks and verify the postconditions independently.
 
 The worker enforces a 15-second minimum between mutation dispatches. HTTP 429 during `checkSession` or the exact-target read-only preflight can defer that platform with exponential backoff. An error after `remove()` is entered is ambiguous: mark it `unknown`, reconcile with an independent relationship read, and never retry it automatically.
 

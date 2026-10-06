@@ -4,7 +4,7 @@ A personal, local-first PWA for reviewing LinkedIn connections, Facebook friends
 
 ## Safety status
 
-The local application, SQLite state machine, cancellation behavior, mixed deck, and PWA are implemented. Facebook unfriending and Instagram unfollowing have each passed one exact live canary and now use narrow browser-backed adapters in the serial worker. LinkedIn discovery and the Remove connection menu path are verified, but LinkedIn mutation remains disabled until its explicitly named canary is approved and the absent postcondition is proven. Running the repository never mutates a platform until the owner stages relationships and applies that exact batch.
+The local application, SQLite state machine, cancellation behavior, mixed deck, and PWA are implemented. LinkedIn connection removal, Facebook unfriending, and Instagram unfollowing have each passed one exact live canary and now use narrow browser-backed adapters in the serial worker. Running the repository never mutates a platform until the owner stages relationships and applies that exact batch.
 
 ## Setup
 
@@ -78,7 +78,7 @@ npm run spike:linkedin
 npm run sync:linkedin
 ```
 
-The sync verifies `/voyager/api/me`, scrolls the authenticated virtualized connection list to exhaustion (or the configured safety ceiling), and writes a private snapshot to `.data/platform-cache/linkedin.json`. LinkedIn removal remains disabled until one exact canary and its absent postcondition are verified.
+The sync verifies `/voyager/api/me`, scrolls the authenticated virtualized connection list to exhaustion (or the configured safety ceiling), and writes a private snapshot to `.data/platform-cache/linkedin.json`. The verified worker path checks the acting account and exact target, then uses **More → Remove connection** once and reconciles against the appearance of the target's **Connect** control.
 
 Facebook also has a read-only host snapshot command:
 
@@ -118,4 +118,4 @@ The server uses one SQLite database and one in-process mutation worker. An insta
 - Instagram means unfollowing accounts the owner follows.
 - A completed removal has no Undo. Only pending work can be cancelled.
 - Private APIs and browser selectors are expected to break and require manual repair.
-- `BROWSER_ADAPTERS` is an explicit allowlist. The default Compose value is `facebook,instagram`; LinkedIn remains read-only.
+- `BROWSER_ADAPTERS` is an explicit allowlist. The default Compose value enables the three live-canary-verified browser adapters.

@@ -134,7 +134,7 @@ export class BrowserAdapter implements PlatformAdapter {
       await page.keyboard.press("Escape");return "present";
     }catch(error){
       const absent=this.platform==="linkedin"
-        ? (await this.visible(page.getByRole("button",{name:/^connect$/i}))).length>0
+        ? (await this.visible(page.getByText("Connect",{exact:true}).locator("xpath=ancestor::button[1]"))).length>0
         : (await this.visible(page.getByText(/^add friend$/i))).length>0;
       if(absent)return "absent";
       throw error;

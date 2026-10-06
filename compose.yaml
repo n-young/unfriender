@@ -12,7 +12,7 @@ services:
       PORT: 3000
       DATA_DIR: /data
       CONTAINERIZED: "true"
-      BROWSER_ADAPTERS: ${BROWSER_ADAPTERS:-facebook,instagram}
+      BROWSER_ADAPTERS: ${BROWSER_ADAPTERS:-linkedin,facebook,instagram}
     init: true
     ports:
       - "127.0.0.1:${SOCIAL_CLEANUP_PORT:-3000}:3000"
