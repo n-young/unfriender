@@ -80,6 +80,15 @@ npm run sync:linkedin
 
 The sync verifies `/voyager/api/me`, discovers a bounded set of connection cards from LinkedIn's authenticated page, and writes a private partial snapshot to `.data/platform-cache/linkedin.json`. In the PWA, select LinkedIn **Connect** and then **Sync** to load that snapshot into SQLite. LinkedIn removal remains disabled until one exact test target and its postcondition are verified.
 
+Facebook also has a read-only host snapshot command:
+
+```sh
+npm run spike:facebook
+npm run sync:facebook
+```
+
+It verifies the account URL, observes the current friends-list GraphQL operation, and snapshots rendered friend cards. Unfriend remains disabled. Instagram currently has sanitized probe tooling, but its session must pass the `/accounts/edit/` authentication check before a following snapshot adapter is implemented.
+
 ## Commands
 
 - `npm run dev` — local web/server development with fake adapters.

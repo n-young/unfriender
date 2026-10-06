@@ -8,8 +8,8 @@ import path from "node:path";
 export function createAdapters(fake: boolean, dataDir: string): Map<Platform,PlatformAdapter> {
   const result = new Map<Platform,PlatformAdapter>();
   for (const platform of ["linkedin","facebook","instagram"] as const) {
-    result.set(platform, fake ? new FakeAdapter(platform) : platform === "linkedin"
-      ? new SnapshotAdapter(platform,path.join(dataDir,"platform-cache","linkedin.json"))
+    result.set(platform, fake ? new FakeAdapter(platform) : platform === "linkedin" || platform === "facebook" || platform === "instagram"
+      ? new SnapshotAdapter(platform,path.join(dataDir,"platform-cache",`${platform}.json`))
       : new UnverifiedAdapter(platform));
   }
   return result;

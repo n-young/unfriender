@@ -15,6 +15,7 @@
     "spike:facebook": "tsx scripts/spike-platform.ts facebook",
     "spike:instagram": "tsx scripts/spike-platform.ts instagram",
     "sync:linkedin": "tsx scripts/sync-linkedin.ts",
+    "sync:facebook": "tsx scripts/sync-facebook.ts",
     "smoke": "tsx scripts/smoke.ts"
   },
   "devDependencies": {
