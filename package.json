@@ -13,6 +13,7 @@
     "login": "tsx scripts/login.ts",
     "session:export": "tsx scripts/export-session.ts",
     "live-test:instagram": "tsx scripts/live-test-instagram-removal.ts",
+    "live-test:browser": "tsx scripts/live-test-browser-removal.ts",
     "spike:linkedin": "tsx scripts/spike-linkedin.ts",
     "spike:facebook": "tsx scripts/spike-platform.ts facebook",
     "spike:instagram": "tsx scripts/spike-platform.ts instagram",

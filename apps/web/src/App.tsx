@@ -35,7 +35,7 @@ export function App(){
 
   function release(){if(drag>90)void decide("keep");else if(drag< -90)void decide("remove");else setDrag(0);startX.current=null}
   return <main>
-    <header><div><span className="eyebrow">PRIVATE · LOCAL</span><h1>Social Cleanup</h1></div></header>
+    <header><div className="brand"><img src="/icon.svg" alt=""/><div><span className="eyebrow">PRIVATE · TAILNET ONLY</span><h1>Unfriendr</h1></div></div><span className="headerNote">your connections, your call</span></header>
     {!online&&<div className="offline">Computer or Tailscale is unreachable. Cards are read-only.</div>}
     {error&&<button className="error" onClick={()=>setError("")}>{error} <span>×</span></button>}
     <section className="accounts" aria-label="Accounts">{accounts.map(a=><div className="account" key={a.platform}><span className={`dot ${a.connectionState}`}/><b>{labels[a.platform]}</b><small>{a.connectionState} · {adapterReady[a.platform]?"removal ready":"read-only"}</small><div>{a.connectionState==="connected"?<><button disabled={busy} onClick={()=>void accountAction(a.platform,"sync")}>Sync</button><button disabled={busy} onClick={()=>void accountAction(a.platform,"disconnect")}>Disconnect</button></>:<button disabled={busy} onClick={()=>void accountAction(a.platform,"connect")}>Connect</button>}</div></div>)}</section>

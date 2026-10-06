@@ -8,7 +8,7 @@ const profile=path.join(dataDir,"profiles","facebook");
 const cacheDir=path.join(dataDir,"platform-cache");
 const sessionDir=path.join(dataDir,"platform-sessions");
 const macChrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const limit=Math.max(10,Math.min(5_000,Number(process.env.FACEBOOK_SYNC_LIMIT??1_000)));
+const limit=Math.max(10,Math.min(20_000,Number(process.env.FACEBOOK_SYNC_LIMIT??5_000)));
 if(!existsSync(profile))throw new Error("Facebook profile is missing. Run: npm run login -- facebook");
 mkdirSync(cacheDir,{recursive:true,mode:0o700});
 mkdirSync(sessionDir,{recursive:true,mode:0o700});
@@ -49,8 +49,9 @@ try{
     }
   };
   let stableRounds=0;let previousUnique=0;
-  const maxRounds=Math.min(500,Math.max(60,Math.ceil(limit/5)*3));
-  for(let round=0;round<maxRounds&&grouped.size<limit&&stableRounds<8;round++){
+  const stableRoundTarget=12;
+  const maxRounds=Math.min(4_000,Math.max(120,Math.ceil(limit/4)*4));
+  for(let round=0;round<maxRounds&&grouped.size<limit&&stableRounds<stableRoundTarget;round++){
     await collect();stableRounds=grouped.size===previousUnique?stableRounds+1:0;previousUnique=grouped.size;
     const anchors=page.locator("[role='main'] a[href*='facebook.com/']");
     if(await anchors.count())await anchors.last().evaluate(element=>element.scrollIntoView({block:"end"}));
@@ -58,8 +59,9 @@ try{
   }
   await collect();
   const relationships=[...grouped.values()].slice(0,limit);if(!relationships.length)throw new Error("Authenticated page loaded but no friend cards could be parsed; selectors need repair");
-  const snapshot={version:1,capturedAt:new Date().toISOString(),complete:false,account:{actingAccountKey:`facebook:vanity:${owner}`,displayName:owner},relationships};
+  const complete=grouped.size<limit&&stableRounds>=stableRoundTarget;
+  const snapshot={version:1,capturedAt:new Date().toISOString(),complete,account:{actingAccountKey:`facebook:vanity:${owner}`,displayName:owner},relationships};
   const filename=path.join(cacheDir,"facebook.json");writeFileSync(filename,JSON.stringify(snapshot,null,2),{mode:0o600});chmodSync(filename,0o600);
   const sessionFilename=path.join(sessionDir,"facebook.json");await context.storageState({path:sessionFilename});chmodSync(sessionFilename,0o600);
-  console.log(`Verified the authenticated Facebook account and cached ${relationships.length} friends (partial scan).`);console.log(`Private local snapshot: ${filename}`);
+  console.log(`Verified the authenticated Facebook account and cached ${relationships.length} friends (${complete?"complete":"partial"} scan).`);console.log(`Private local snapshot: ${filename}`);
 }finally{await context.close();}

@@ -8,7 +8,7 @@ const profile=path.join(dataDir,"profiles","linkedin");
 const cacheDir=path.join(dataDir,"platform-cache");
 const sessionDir=path.join(dataDir,"platform-sessions");
 const macChrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const limit=Math.max(10,Math.min(5_000,Number(process.env.LINKEDIN_SYNC_LIMIT??1_000)));
+const limit=Math.max(10,Math.min(20_000,Number(process.env.LINKEDIN_SYNC_LIMIT??5_000)));
 if(!existsSync(profile))throw new Error("LinkedIn profile is missing. Run: npm run login -- linkedin");
 mkdirSync(cacheDir,{recursive:true,mode:0o700});
 mkdirSync(sessionDir,{recursive:true,mode:0o700});
@@ -62,8 +62,9 @@ try{
     }
   };
   let stableRounds=0;let previousUnique=0;
-  const maxRounds=Math.min(500,Math.max(60,Math.ceil(limit/5)*3));
-  for(let round=0;round<maxRounds&&grouped.size<limit&&stableRounds<8;round++){
+  const stableRoundTarget=12;
+  const maxRounds=Math.min(4_000,Math.max(120,Math.ceil(limit/4)*4));
+  for(let round=0;round<maxRounds&&grouped.size<limit&&stableRounds<stableRoundTarget;round++){
     await collect();
     stableRounds=grouped.size===previousUnique?stableRounds+1:0;previousUnique=grouped.size;
     const anchors=page.locator("main a[href*='/in/']");
@@ -77,8 +78,9 @@ try{
   await collect();
   const relationships=[...grouped.values()].slice(0,limit).map(row=>({targetKey:`vanity:${row.handle}`,displayName:row.displayName,handle:row.handle,profileUrl:row.profileUrl,photoUrl:row.photoUrl}));
   if(!relationships.length)throw new Error("Authenticated page loaded but no connection cards could be parsed; selectors need repair");
+  const complete=grouped.size<limit&&stableRounds>=stableRoundTarget;
   const snapshot={
-    version:1,capturedAt:new Date().toISOString(),complete:false,
+    version:1,capturedAt:new Date().toISOString(),complete,
     account:{actingAccountKey:`linkedin:${plainId}`,displayName:`${miniProfile.firstName??""} ${miniProfile.lastName??""}`.trim(),publicIdentifier:miniProfile.publicIdentifier},
     relationships
   };
@@ -87,7 +89,7 @@ try{
   chmodSync(filename,0o600);
   const sessionFilename=path.join(sessionDir,"linkedin.json");
   await context.storageState({path:sessionFilename});chmodSync(sessionFilename,0o600);
-  console.log(`Verified the authenticated LinkedIn account and cached ${relationships.length} connections (partial scan).`);
+  console.log(`Verified the authenticated LinkedIn account and cached ${relationships.length} connections (${complete?"complete":"partial"} scan).`);
   console.log(`Private local snapshot: ${filename}`);
 }finally{
   await context.close();

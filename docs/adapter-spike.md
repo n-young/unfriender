@@ -1,6 +1,6 @@
 # Platform adapter spike checklist
 
-The checked-in real adapters intentionally fail closed. Do not turn one on until these steps are recorded for the owner's current account and a deliberately selected test relationship.
+Adapters remain fail closed per platform until these steps are recorded for the owner's current account and a deliberately selected test relationship. `BROWSER_ADAPTERS` is the explicit runtime allowlist.
 
 For each platform:
 
@@ -21,9 +21,11 @@ npm run spike:facebook
 npm run spike:instagram
 ```
 
-These probes are read-only. They record endpoint and DOM shapes only. Read-only snapshots are now implemented for all three platforms: LinkedIn and Facebook accumulate cards across their virtualized pages, while Instagram follows the observed `/api/v1/friendships/<account-id>/following/` cursor. All mutation methods remain disabled.
+These probes are read-only. They record endpoint and DOM shapes only. Complete snapshots are implemented for all three platforms: LinkedIn and Facebook accumulate cards across their virtualized pages, while Instagram follows the observed `/api/v1/friendships/<account-id>/following/` cursor.
 
-The removal investigation leads currently point to LinkedIn's `com.linkedin.sdui.mynetwork.RemoveConnectionVanityName`, Facebook's unofficial `unfriend(userID)` implementations, and Instagram's `POST /api/v1/friendships/destroy/<user-id>/`. These are source leads, not live verification. Do not enable any of them until an exact test target is selected and the current request is captured or validated against that target.
+As of October 6, 2026, one Instagram **Following → Unfollow** canary and one Facebook **Friends → Unfriend** canary were dispatched once and independently verified absent. Their browser-backed adapters are enabled. LinkedIn's acting-account, target-page, and **More → Remove connection** dry-run checks pass, but no LinkedIn mutation has been approved or verified, so that adapter remains read-only.
+
+The Facebook browser canary observed `FriendingCometUnfriendMutation`; the Instagram mutation endpoint was not reliably surfaced by the browser response listener, so the adapter intentionally keeps the proven UI fallback and verifies through the read-only friendship endpoint. The LinkedIn private operation remains only an investigation lead until its live canary is explicitly approved.
 
 The worker enforces a 15-second minimum between mutation dispatches. HTTP 429 during `checkSession` or the exact-target read-only preflight can defer that platform with exponential backoff. An error after `remove()` is entered is ambiguous: mark it `unknown`, reconcile with an independent relationship read, and never retry it automatically.
 

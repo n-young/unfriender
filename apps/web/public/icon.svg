@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#111827"/><path d="M128 170h256M170 170l18 220h136l18-220M210 130h92" fill="none" stroke="#f4f1ea" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/><path d="M226 228v104m60-104v104" stroke="#e8795a" stroke-width="26" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Broken chain">
+  <rect width="512" height="512" rx="92" fill="#3b5998"/>
+  <g fill="none" stroke="#fff" stroke-width="42" stroke-linecap="round">
+    <path d="M205 292l-30 30c-38 38-99 38-137 0s-38-99 0-137l63-63c38-38 99-38 137 0 15 15 24 34 27 53"/>
+    <path d="M307 220l30-30c38-38 99-38 137 0s38 99 0 137l-63 63c-38 38-99 38-137 0-15-15-24-34-27-53"/>
+  </g>
+  <g stroke="#ffd86b" stroke-width="27" stroke-linecap="round">
+    <path d="M256 65v65M134 94l33 56M378 94l-33 56"/>
+    <path d="M256 447v-65M134 418l33-56M378 418l-33-56"/>
+  </g>
+</svg>

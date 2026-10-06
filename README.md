@@ -1,10 +1,10 @@
-# Social Cleanup
+# Unfriendr
 
 A personal, local-first PWA for reviewing LinkedIn connections, Facebook friends, and Instagram follows. The phone UI is served from the owner's computer through Tailscale Serve. Review decisions are durable; removals are explicitly batched, delayed, serialized, and independently verified.
 
 ## Safety status
 
-The local application, fake adapters, SQLite state machine, cancellation behavior, and PWA are implemented. **No real platform adapter is claimed to work.** Real adapters fail closed until the per-account API spike in [docs/adapter-spike.md](docs/adapter-spike.md) is completed. Running this repository does not remove any real relationship by default.
+The local application, SQLite state machine, cancellation behavior, mixed deck, and PWA are implemented. Facebook unfriending and Instagram unfollowing have each passed one exact live canary and now use narrow browser-backed adapters in the serial worker. LinkedIn discovery and the Remove connection menu path are verified, but LinkedIn mutation remains disabled until its explicitly named canary is approved and the absent postcondition is proven. Running the repository never mutates a platform until the owner stages relationships and applies that exact batch.
 
 ## Setup
 
@@ -26,7 +26,7 @@ tailscale serve --bg 3000
 
 Use the exact HTTPS URL printed by Tailscale. Do not use Funnel. The computer must remain awake and connected to the tailnet.
 
-On the owner's current machine, port 443 remains assigned to Tutalage and Dockge uses 8443. Social Cleanup is therefore published separately with:
+On the owner's current machine, port 443 remains assigned to Tutalage and Dockge uses 8443. Unfriendr is therefore published separately with:
 
 ```sh
 tailscale serve --bg --https=8444 3000
@@ -49,7 +49,7 @@ For Dockge installations that should not mount `~/Programming`, a runtime-only c
 
 On the owner's current machine, broader access was explicitly approved. Dockge mounts `~/Programming`, and its existing stacks tree contains `unfriender`, a symlink to this repository. This makes the checked-in `compose.yaml` the stack Dockge operates while preserving the requested repository location.
 
-Headed platform login remains a host-side command (`npm run login -- <platform>`), because a Dockge-managed container has no Mac desktop session. The resulting ignored `.data/` directory is mounted into the app container. Real adapters remain fail-closed until their API spike is verified.
+Headed platform login remains a host-side command (`npm run login -- <platform>`), because login and MFA require the Mac desktop session. Each sync exports browser storage into the ignored `.data/` directory mounted by the app container. The container includes pinned headless Chromium for verified browser-backed checks and removals.
 
 For a safe local demo with generated relationships:
 
@@ -78,7 +78,7 @@ npm run spike:linkedin
 npm run sync:linkedin
 ```
 
-The sync verifies `/voyager/api/me`, discovers a bounded set of connection cards from LinkedIn's authenticated page, and writes a private partial snapshot to `.data/platform-cache/linkedin.json`. In the PWA, select LinkedIn **Connect** and then **Sync** to load that snapshot into SQLite. LinkedIn removal remains disabled until one exact test target and its postcondition are verified.
+The sync verifies `/voyager/api/me`, scrolls the authenticated virtualized connection list to exhaustion (or the configured safety ceiling), and writes a private snapshot to `.data/platform-cache/linkedin.json`. LinkedIn removal remains disabled until one exact canary and its absent postcondition are verified.
 
 Facebook also has a read-only host snapshot command:
 
@@ -87,7 +87,7 @@ npm run spike:facebook
 npm run sync:facebook
 ```
 
-It verifies the account URL, observes the current friends-list GraphQL operation, and accumulates rendered friend cards across Facebook's virtualized list. Unfriend remains disabled.
+It verifies the account URL and accumulates friend cards across Facebook's virtualized list. The verified worker path checks the acting account and exact target, then uses **Friends → Unfriend** once and independently confirms that **Add friend** replaces the friendship control.
 
 Instagram also has a read-only following snapshot command:
 
@@ -96,7 +96,9 @@ npm run spike:instagram
 npm run sync:instagram
 ```
 
-The sync verifies the acting account, opens its Following panel, then paginates the exact observed read-only endpoint using stable numeric account IDs. Read-only pages have a 1.5-second request floor and bounded exponential backoff for HTTP 429/5xx responses. Unfollow remains disabled until one exact test target and its postcondition are verified.
+The sync verifies the acting account, opens its Following panel, then paginates the exact observed read-only endpoint using stable numeric account IDs. Read-only pages have a 1.5-second request floor and bounded exponential backoff for HTTP 429/5xx responses. The verified worker path checks the numeric friendship state, uses the profile's **Following → Unfollow** flow once, then reads the friendship state again.
+
+The current owner snapshots completed at 2,459 LinkedIn connections, 2,285 Facebook friends, and 1,620 Instagram follows. Snapshot contents, cookies, profiles, and canary reports stay in ignored `.data/` files.
 
 ## Commands
 
@@ -105,6 +107,7 @@ The sync verifies the acting account, opens its Following panel, then paginates 
 - `npm test` — state machine and worker tests using fake adapters.
 - `npm run typecheck` — strict TypeScript checks.
 - `npm run smoke` — checks a running backend.
+- `npm run live-test:browser -- facebook|linkedin` — guarded one-target browser canary; requires the platform-specific exact-handle environment variable, and remains a dry run unless `LIVE_BROWSER_REMOVAL` repeats that same handle.
 
 The server uses one SQLite database and one in-process mutation worker. An instance lock prevents two processes from using the same data directory. Startup turns in-flight mutations into `unknown` and pauses unstarted applied work; explicit resume starts a fresh grace window. Mutations are serialized with a 15-second minimum interval. A rate limit during a read-only preflight defers that platform with bounded exponential backoff; once a mutation has been dispatched, any unclear response becomes `unknown` and is never retried automatically.
 
@@ -115,3 +118,4 @@ The server uses one SQLite database and one in-process mutation worker. An insta
 - Instagram means unfollowing accounts the owner follows.
 - A completed removal has no Undo. Only pending work can be cancelled.
 - Private APIs and browser selectors are expected to break and require manual repair.
+- `BROWSER_ADAPTERS` is an explicit allowlist. The default Compose value is `facebook,instagram`; LinkedIn remains read-only.

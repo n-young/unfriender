@@ -1,5 +1,19 @@
 {
-  "name":"Social Cleanup","short_name":"Cleanup","start_url":"/","display":"standalone",
-  "background_color":"#f4f1ea","theme_color":"#111827",
-  "icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "id":"/",
+  "name":"Unfriendr",
+  "short_name":"Unfriendr",
+  "description":"A private, local-first social connection cleanup tool.",
+  "start_url":"/",
+  "scope":"/",
+  "display":"standalone",
+  "display_override":["window-controls-overlay","standalone"],
+  "orientation":"portrait-primary",
+  "background_color":"#e9ebee",
+  "theme_color":"#3b5998",
+  "categories":["utilities","lifestyle"],
+  "icons":[
+    {"src":"/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"maskable"}
+  ]
 }
