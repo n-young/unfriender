@@ -43,7 +43,7 @@ export function App(){
       {cards[1]&&<div className="card behind"/>}
       {card?<article className="card" style={{transform:`translateX(${drag}px) rotate(${drag/25}deg)`}} onPointerDown={e=>{startX.current=e.clientX;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(startX.current!==null)setDrag(e.clientX-startX.current)}} onPointerUp={release} onPointerCancel={release}>
         <div className={`stamp keep ${drag>45?"show":""}`}>KEEP</div><div className={`stamp remove ${drag< -45?"show":""}`}>REMOVE</div>
-        <div className={`avatar ${card.platform}`} style={{position:"relative"}}><span>{card.displayName.split(/\s+/).slice(0,2).map(s=>s[0]).join("")}</span>{card.photoUrl&&<img src={card.photoUrl} alt="" referrerPolicy="no-referrer" style={{position:"absolute",inset:0}} onError={event=>event.currentTarget.remove()}/>}</div>
+        <div className={`avatar ${card.platform}`} style={{position:"relative"}}><span>{card.displayName.split(/\s+/).slice(0,2).map(s=>s[0]).join("")}</span>{card.photoUrl&&<img src={`/api/connections/${card.id}/photo`} alt="" style={{position:"absolute",inset:0}} onError={event=>event.currentTarget.remove()}/>}</div>
         <span className={`badge ${card.platform}`}>{labels[card.platform]}</span><h2>{card.displayName}</h2>{card.handle&&<p>@{card.handle}</p>}
         <a href={card.profileUrl} target="_blank" rel="noreferrer" onPointerDown={e=>e.stopPropagation()}>View profile ↗</a>
       </article>:<div className="empty"><div>✓</div><h2>You’re caught up</h2><p>Sync an account to look for more connections.</p></div>}

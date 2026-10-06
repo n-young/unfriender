@@ -154,6 +154,11 @@ export class Store {
       WHERE c.review_state='pending' AND c.deck_order>? ORDER BY c.deck_order LIMIT ?`).all(after, limit);
   }
 
+  connectionPhoto(id:number){
+    return this.db.prepare(`SELECT a.platform,c.photo_url AS photoUrl
+      FROM connections c JOIN accounts a ON a.id=c.account_id WHERE c.id=? AND c.photo_url IS NOT NULL`).get(id) as {platform:Platform;photoUrl:string}|undefined;
+  }
+
   decide(input: DecisionInput) {
     return this.transaction(() => {
       const existing = this.db.prepare("SELECT id FROM decisions WHERE operation_id=?").get(input.operationId) as {id:number}|undefined;

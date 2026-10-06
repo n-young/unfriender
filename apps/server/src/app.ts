@@ -8,6 +8,7 @@ import type { Store } from "./store.js";
 import { ConflictError, NotFoundError } from "./store.js";
 import type { PlatformAdapter } from "./adapters/types.js";
 import { AdapterUnavailableError } from "./adapters/types.js";
+import { fetchPlatformPhoto } from "./photo.js";
 
 export interface AppOptions {
   store: Store;
@@ -57,6 +58,23 @@ export function buildApp(options: AppOptions) {
     return { cards, nextCursor: cards.length ? (cards.at(-1) as any).deckOrder : null };
   });
   app.get("/api/removals", async () => ({ removals: options.store.removals(), serverTime: Date.now() }));
+  app.get("/api/connections/:id/photo", async (request,reply) => {
+    const id=Number((request.params as {id:string}).id);
+    if(!Number.isSafeInteger(id)||id<1)return reply.code(404).send();
+    const photo=options.store.connectionPhoto(id);
+    if(!photo)return reply.code(404).send();
+    let response:Response;
+    try{response=await fetchPlatformPhoto(photo.platform,photo.photoUrl);}
+    catch(error){request.log.warn({connectionId:id,error:error instanceof Error?error.message:String(error)},"profile photo proxy failed");return reply.code(502).send();}
+    if(!response.ok)return reply.code(response.status===404?404:502).send();
+    const contentType=(response.headers.get("content-type")??"").split(";")[0]??"";
+    if(!["image/avif","image/gif","image/jpeg","image/png","image/webp"].includes(contentType))return reply.code(502).send();
+    const length=Number(response.headers.get("content-length")??0);
+    if(length>5_000_000)return reply.code(413).send();
+    const bytes=Buffer.from(await response.arrayBuffer());
+    if(bytes.length>5_000_000)return reply.code(413).send();
+    return reply.header("cache-control","private, max-age=86400, stale-while-revalidate=604800").type(contentType).send(bytes);
+  });
 
   app.post("/api/accounts/:platform/connect", async (request, reply) => {
     const platform = PlatformSchema.parse((request.params as any).platform);
