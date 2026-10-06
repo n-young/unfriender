@@ -1,0 +1,23 @@
+{
+  "name": "social-cleanup",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "build": "npm run build -w @social-cleanup/shared && npm run build -w @social-cleanup/web && npm run build -w @social-cleanup/server",
+    "dev": "concurrently -n web,server -c cyan,green \"npm run dev -w @social-cleanup/web\" \"npm run dev -w @social-cleanup/server\"",
+    "start": "npm run start -w @social-cleanup/server",
+    "test": "npm run test -w @social-cleanup/server",
+    "typecheck": "npm run build -w @social-cleanup/shared && npm run typecheck -w @social-cleanup/web && npm run typecheck -w @social-cleanup/server",
+    "login": "tsx scripts/login.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "playwright": "^1.52.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": { "node": ">=22.5" }
+}

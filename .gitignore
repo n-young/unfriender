@@ -1,0 +1,14 @@
+node_modules/
+dist/
+apps/*/dist/
+.data/
+data/
+playwright-report/
+test-results/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.log
+*.tsbuildinfo
+.env
+.DS_Store
