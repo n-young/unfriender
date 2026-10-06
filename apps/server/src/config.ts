@@ -21,7 +21,8 @@ export const config = {
   localDevBypass: bool("LOCAL_DEV_BYPASS"),
   fakeAdapters: bool("FAKE_ADAPTERS"),
   graceMs: Number(process.env.REMOVAL_GRACE_MS ?? 10_000),
-  mutationIntervalMs: Number(process.env.MUTATION_INTERVAL_MS ?? 3_000)
+  mutationIntervalMs: Math.max(15_000,Number(process.env.MUTATION_INTERVAL_MS ?? 15_000)),
+  mutationRetryBaseMs: Math.max(5_000,Number(process.env.MUTATION_RETRY_BASE_MS ?? 30_000))
 };
 
 const containerized = bool("CONTAINERIZED");

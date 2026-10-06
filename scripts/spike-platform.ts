@@ -33,7 +33,10 @@ async function inspect(response:APIResponse){
     ? url.hostname.endsWith("facebook.com")&&(url.pathname.includes("graphql")||url.pathname.startsWith("/api/")||url.pathname.startsWith("/ajax/"))
     : url.hostname.endsWith("instagram.com")&&(url.pathname.includes("graphql")||url.pathname.startsWith("/api/"));
   if(!relevant)return;
-  const entry:Endpoint={method:response.request().method(),status:response.status(),path:url.pathname,queryKeys:[...url.searchParams.keys()].sort(),bodyKeys:bodyKeys(response)};
+  const sanitizedPath=url.pathname
+    .replace(/(\/api\/v1\/friendships\/)\d+(\/(?:followers|following)\/)/,"$1<account-id>$2")
+    .replace(/(\/api\/v1\/web\/get_profile_pic_props\/)[^/]+(\/)/,"$1<username>$2");
+  const entry:Endpoint={method:response.request().method(),status:response.status(),path:sanitizedPath,queryKeys:[...url.searchParams.keys()].sort(),bodyKeys:bodyKeys(response)};
   const params=new URLSearchParams(response.request().postData()??"");
   const operation=params.get("fb_api_req_friendly_name");if(operation)entry.operation=operation;
   const documentId=params.get("doc_id");if(documentId)entry.documentId=documentId;

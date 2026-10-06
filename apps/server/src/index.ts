@@ -11,7 +11,7 @@ mkdirSync(config.dataDir,{recursive:true,mode:0o700});
 const releaseLock = acquireInstanceLock(config.dataDir);
 const store = new Store(path.join(config.dataDir,"social-cleanup.sqlite"));
 const adapters = createAdapters(config.fakeAdapters,config.dataDir);
-const worker = new RemovalWorker(store,adapters,config.mutationIntervalMs);
+const worker = new RemovalWorker(store,adapters,config.mutationIntervalMs,config.mutationRetryBaseMs);
 const app = buildApp({...config,store,adapters});
 worker.start();
 

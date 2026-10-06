@@ -87,7 +87,16 @@ npm run spike:facebook
 npm run sync:facebook
 ```
 
-It verifies the account URL, observes the current friends-list GraphQL operation, and snapshots rendered friend cards. Unfriend remains disabled. Instagram currently has sanitized probe tooling, but its session must pass the `/accounts/edit/` authentication check before a following snapshot adapter is implemented.
+It verifies the account URL, observes the current friends-list GraphQL operation, and accumulates rendered friend cards across Facebook's virtualized list. Unfriend remains disabled.
+
+Instagram also has a read-only following snapshot command:
+
+```sh
+npm run spike:instagram
+npm run sync:instagram
+```
+
+The sync verifies the acting account, opens its Following panel, then paginates the exact observed read-only endpoint using stable numeric account IDs. Read-only pages have a 1.5-second request floor and bounded exponential backoff for HTTP 429/5xx responses. Unfollow remains disabled until one exact test target and its postcondition are verified.
 
 ## Commands
 
@@ -97,7 +106,7 @@ It verifies the account URL, observes the current friends-list GraphQL operation
 - `npm run typecheck` — strict TypeScript checks.
 - `npm run smoke` — checks a running backend.
 
-The server uses one SQLite database and one in-process mutation worker. An instance lock prevents two processes from using the same data directory. Startup turns in-flight mutations into `unknown` and pauses unstarted applied work; explicit resume starts a fresh grace window.
+The server uses one SQLite database and one in-process mutation worker. An instance lock prevents two processes from using the same data directory. Startup turns in-flight mutations into `unknown` and pauses unstarted applied work; explicit resume starts a fresh grace window. Mutations are serialized with a 15-second minimum interval. A rate limit during a read-only preflight defers that platform with bounded exponential backoff; once a mutation has been dispatched, any unclear response becomes `unknown` and is never retried automatically.
 
 ## Deliberate limitations
 

@@ -11,11 +11,13 @@
     "test": "npm run test -w @social-cleanup/server",
     "typecheck": "npm run build -w @social-cleanup/shared && npm run typecheck -w @social-cleanup/web && npm run typecheck -w @social-cleanup/server",
     "login": "tsx scripts/login.ts",
+    "session:export": "tsx scripts/export-session.ts",
     "spike:linkedin": "tsx scripts/spike-linkedin.ts",
     "spike:facebook": "tsx scripts/spike-platform.ts facebook",
     "spike:instagram": "tsx scripts/spike-platform.ts instagram",
     "sync:linkedin": "tsx scripts/sync-linkedin.ts",
     "sync:facebook": "tsx scripts/sync-facebook.ts",
+    "sync:instagram": "tsx scripts/sync-instagram.ts",
     "smoke": "tsx scripts/smoke.ts"
   },
   "devDependencies": {

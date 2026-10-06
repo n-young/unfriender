@@ -66,6 +66,10 @@ export class Store {
       CREATE UNIQUE INDEX IF NOT EXISTS one_live_removal ON removals(account_id,target_key)
         WHERE state IN ('draft','scheduled','ready','executing','paused','unknown');
     `);
+    const accountColumns=new Set((this.db.prepare("PRAGMA table_info(accounts)").all() as {name:string}[]).map(column=>column.name));
+    if(!accountColumns.has("mutation_backoff_until_ms"))this.db.exec("ALTER TABLE accounts ADD COLUMN mutation_backoff_until_ms INTEGER");
+    const removalColumns=new Set((this.db.prepare("PRAGMA table_info(removals)").all() as {name:string}[]).map(column=>column.name));
+    if(!removalColumns.has("retry_after_ms"))this.db.exec("ALTER TABLE removals ADD COLUMN retry_after_ms INTEGER");
     for (const platform of ["linkedin", "facebook", "instagram"]) {
       this.db.prepare("INSERT OR IGNORE INTO accounts(platform) VALUES (?)").run(platform);
     }
@@ -252,7 +256,9 @@ export class Store {
       const row = this.db.prepare(`SELECT r.id,r.decision_id AS decisionId,r.account_id AS accountId,a.platform,
         r.acting_account_key AS actingAccountKey,r.session_generation AS sessionGeneration,
         r.target_key AS targetKey,r.profile_url AS profileUrl,r.attempt
-        FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.state='ready' ORDER BY r.id LIMIT 1`).get() as ClaimedRemoval|undefined;
+      FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.state='ready'
+        AND COALESCE(r.retry_after_ms,0)<=? AND COALESCE(a.mutation_backoff_until_ms,0)<=?
+        ORDER BY r.id LIMIT 1`).get(nowMs,nowMs) as ClaimedRemoval|undefined;
       if (!row) return undefined;
       const changed = this.db.prepare(`UPDATE removals SET state='executing',attempt=attempt+1,started_at=datetime('now') WHERE id=? AND state='ready'`).run(row.id);
       if (changed.changes !== 1) return undefined;
@@ -262,8 +268,20 @@ export class Store {
   }
 
   completeRemoval(id: number, state: "removed"|"already_absent"|"paused"|"unknown", result?: string, error?: string) {
-    this.db.prepare(`UPDATE removals SET state=?,completed_at=datetime('now'),result=?,error=? WHERE id=? AND state='executing'`)
+    this.db.prepare(`UPDATE removals SET state=?,completed_at=datetime('now'),result=?,error=?,retry_after_ms=NULL WHERE id=? AND state='executing'`)
       .run(state,result ?? null,error ?? null,id);
+  }
+
+  deferRemoval(id:number,retryAfterMs:number,error:string){
+    return this.transaction(()=>{
+      const row=this.db.prepare("SELECT account_id AS accountId FROM removals WHERE id=? AND state='executing'").get(id) as {accountId:number}|undefined;
+      if(!row)throw new ConflictError("removal is not executing");
+      this.db.prepare("UPDATE removals SET state='ready',started_at=NULL,retry_after_ms=?,error=? WHERE id=?").run(retryAfterMs,error,id);
+      this.db.prepare(`UPDATE accounts SET mutation_backoff_until_ms=CASE
+        WHEN COALESCE(mutation_backoff_until_ms,0)>? THEN mutation_backoff_until_ms ELSE ? END WHERE id=?`)
+        .run(retryAfterMs,retryAfterMs,row.accountId);
+      return {id,retryAfterMs};
+    });
   }
 
   accountMatches(id: number, actingAccountKey: string, generation: number) {
@@ -294,7 +312,7 @@ export class Store {
   removals() {
     return this.db.prepare(`SELECT r.id,r.decision_id AS decisionId,r.batch_id AS batchId,a.platform,
       r.target_key AS targetKey,r.profile_url AS profileUrl,r.state,r.attempt,r.started_at AS startedAt,
-      r.completed_at AS completedAt,r.result,r.error,b.execute_after_ms AS executeAfterMs
+      r.completed_at AS completedAt,r.result,r.error,r.retry_after_ms AS retryAfterMs,b.execute_after_ms AS executeAfterMs
       FROM removals r JOIN accounts a ON a.id=r.account_id LEFT JOIN batches b ON b.id=r.batch_id ORDER BY r.id DESC`).all();
   }
 }

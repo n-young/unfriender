@@ -32,7 +32,7 @@ export function App(){
 
   function release(){if(drag>90)void decide("keep");else if(drag< -90)void decide("remove");else setDrag(0);startX.current=null}
   return <main>
-    <header><div><span className="eyebrow">PRIVATE · LOCAL</span><h1>Social Cleanup</h1></div><button className="undo" disabled={busy||!online} onClick={()=>void undo()}>↶ Undo</button></header>
+    <header><div><span className="eyebrow">PRIVATE · LOCAL</span><h1>Social Cleanup</h1></div></header>
     {!online&&<div className="offline">Computer or Tailscale is unreachable. Cards are read-only.</div>}
     {error&&<button className="error" onClick={()=>setError("")}>{error} <span>×</span></button>}
     <section className="accounts" aria-label="Accounts">{accounts.map(a=><div className="account" key={a.platform}><span className={`dot ${a.connectionState}`}/><b>{labels[a.platform]}</b><small>{a.connectionState}</small><div>{a.connectionState==="connected"?<><button disabled={busy} onClick={()=>void accountAction(a.platform,"sync")}>Sync</button><button disabled={busy} onClick={()=>void accountAction(a.platform,"disconnect")}>Disconnect</button></>:<button disabled={busy} onClick={()=>void accountAction(a.platform,"connect")}>Connect</button>}</div></div>)}</section>
@@ -40,12 +40,12 @@ export function App(){
       {cards[1]&&<div className="card behind"/>}
       {card?<article className="card" style={{transform:`translateX(${drag}px) rotate(${drag/25}deg)`}} onPointerDown={e=>{startX.current=e.clientX;e.currentTarget.setPointerCapture(e.pointerId)}} onPointerMove={e=>{if(startX.current!==null)setDrag(e.clientX-startX.current)}} onPointerUp={release} onPointerCancel={release}>
         <div className={`stamp keep ${drag>45?"show":""}`}>KEEP</div><div className={`stamp remove ${drag< -45?"show":""}`}>REMOVE</div>
-        <div className={`avatar ${card.platform}`}>{card.photoUrl?<img src={card.photoUrl} alt=""/>:card.displayName.split(/\s+/).slice(0,2).map(s=>s[0]).join("")}</div>
+        <div className={`avatar ${card.platform}`} style={{position:"relative"}}><span>{card.displayName.split(/\s+/).slice(0,2).map(s=>s[0]).join("")}</span>{card.photoUrl&&<img src={card.photoUrl} alt="" referrerPolicy="no-referrer" style={{position:"absolute",inset:0}} onError={event=>event.currentTarget.remove()}/>}</div>
         <span className={`badge ${card.platform}`}>{labels[card.platform]}</span><h2>{card.displayName}</h2>{card.handle&&<p>@{card.handle}</p>}
         <a href={card.profileUrl} target="_blank" rel="noreferrer" onPointerDown={e=>e.stopPropagation()}>View profile ↗</a>
       </article>:<div className="empty"><div>✓</div><h2>You’re caught up</h2><p>Sync an account to look for more connections.</p></div>}
     </section>
-    <nav className="actions"><button className="removeButton" disabled={!card||busy||!online} onClick={()=>void decide("remove")} aria-label="Stage removal">×</button><button className="skipButton" disabled={!card||busy||!online} onClick={()=>void decide("skip")}>Skip</button><button className="keepButton" disabled={!card||busy||!online} onClick={()=>void decide("keep")} aria-label="Keep">♥</button></nav>
+    <nav className="actions"><button className="removeButton" disabled={!card||busy||!online} onClick={()=>void decide("remove")} aria-label="Stage removal">×</button><div className="secondaryActions" style={{display:"flex",alignItems:"center",gap:8}}><button className="skipButton" disabled={!card||busy||!online} onClick={()=>void decide("skip")}>Skip</button><button className="undo skipButton" disabled={busy||!online} onClick={()=>void undo()}>↶ Undo</button></div><button className="keepButton" disabled={!card||busy||!online} onClick={()=>void decide("keep")} aria-label="Keep">♥</button></nav>
     <section className="tray"><div><span>Staged removals</span><strong>{drafts.length}</strong></div><button disabled={!drafts.length||busy||!online} onClick={()=>void apply()}>Apply {drafts.length||""} removals</button></section>
     {active.length>0&&<section className="pending"><h2>Pending & recent</h2>{active.map(r=><div className="pendingRow" key={r.id}><span className={`badge ${r.platform}`}>{labels[r.platform]}</span><code>{r.targetKey}</code><b>{r.state}</b>{r.state==="paused"&&r.batchId?<button onClick={()=>void api(`/api/batches/${r.batchId}/resume`,{method:"POST",body:"{}"}).then(refresh)}>Resume</button>:["scheduled","ready"].includes(r.state)?<button onClick={()=>void api(`/api/removals/${r.id}/cancel`,{method:"POST",body:"{}"}).then(refresh)}>Cancel</button>:null}{r.error&&<small>{r.error}</small>}</div>)}</section>}
   </main>

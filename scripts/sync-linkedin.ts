@@ -6,10 +6,12 @@ const root=path.resolve(import.meta.dirname,"..");
 const dataDir=path.resolve(root,process.env.DATA_DIR??".data");
 const profile=path.join(dataDir,"profiles","linkedin");
 const cacheDir=path.join(dataDir,"platform-cache");
+const sessionDir=path.join(dataDir,"platform-sessions");
 const macChrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const limit=Math.max(10,Math.min(5_000,Number(process.env.LINKEDIN_SYNC_LIMIT??1_000)));
 if(!existsSync(profile))throw new Error("LinkedIn profile is missing. Run: npm run login -- linkedin");
 mkdirSync(cacheDir,{recursive:true,mode:0o700});
+mkdirSync(sessionDir,{recursive:true,mode:0o700});
 
 let me: any;
 const responseReads:Promise<void>[]=[];
@@ -35,12 +37,13 @@ try{
   const plainId=me?.data?.plainId;
   if(!plainId||!miniProfile?.publicIdentifier)throw new Error("Could not verify the acting LinkedIn account from /voyager/api/me");
 
-  const grouped=new Map<string,{profileUrl:string;displayName:string;handle:string}>();
+  const grouped=new Map<string,{profileUrl:string;displayName:string;handle:string;photoUrl?:string}>();
   const collect=async()=>{
     const raw=await page.locator("main a[href*='/in/']").evaluateAll(items=>items.map(item=>({
       href:(item as HTMLAnchorElement).href,
       text:(item as HTMLElement).innerText??"",
-      imageAlt:item.querySelector("img")?.getAttribute("alt")??""
+      imageAlt:item.querySelector("img")?.getAttribute("alt")??"",
+      imageSrc:(item.querySelector("img") as HTMLImageElement|null)?.currentSrc||(item.querySelector("img") as HTMLImageElement|null)?.src||""
     })));
     for(const item of raw){
       const url=new URL(item.href);const match=url.pathname.match(/^\/in\/([^/]+)/);
@@ -50,7 +53,12 @@ try{
         .map(value=>value.trim().replace(/^(profile photo of|photo of)\s+/i,"").replace(/\s*[•·]\s*(1st|2nd|3rd).*$/i,""))
         .filter(value=>value.length>=2&&value.length<=120&&!/^(view|profile)$/i.test(value));
       const displayName=candidates.sort((a,b)=>a.length-b.length)[0];
-      if(displayName&&!grouped.has(profileUrl))grouped.set(profileUrl,{profileUrl,displayName,handle:match[1]});
+      const photoUrl=/^https:\/\//.test(item.imageSrc)&&new URL(item.imageSrc).hostname.endsWith("licdn.com")?item.imageSrc:undefined;
+      if(displayName){
+        const existing=grouped.get(profileUrl);
+        if(!existing)grouped.set(profileUrl,{profileUrl,displayName,handle:match[1],photoUrl});
+        else if(!existing.photoUrl&&photoUrl)existing.photoUrl=photoUrl;
+      }
     }
   };
   let stableRounds=0;let previousUnique=0;
@@ -67,7 +75,7 @@ try{
     await page.waitForTimeout(1_250);
   }
   await collect();
-  const relationships=[...grouped.values()].slice(0,limit).map(row=>({targetKey:`vanity:${row.handle}`,displayName:row.displayName,handle:row.handle,profileUrl:row.profileUrl}));
+  const relationships=[...grouped.values()].slice(0,limit).map(row=>({targetKey:`vanity:${row.handle}`,displayName:row.displayName,handle:row.handle,profileUrl:row.profileUrl,photoUrl:row.photoUrl}));
   if(!relationships.length)throw new Error("Authenticated page loaded but no connection cards could be parsed; selectors need repair");
   const snapshot={
     version:1,capturedAt:new Date().toISOString(),complete:false,
@@ -77,6 +85,8 @@ try{
   const filename=path.join(cacheDir,"linkedin.json");
   writeFileSync(filename,JSON.stringify(snapshot,null,2),{mode:0o600});
   chmodSync(filename,0o600);
+  const sessionFilename=path.join(sessionDir,"linkedin.json");
+  await context.storageState({path:sessionFilename});chmodSync(sessionFilename,0o600);
   console.log(`Verified the authenticated LinkedIn account and cached ${relationships.length} connections (partial scan).`);
   console.log(`Private local snapshot: ${filename}`);
 }finally{
