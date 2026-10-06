@@ -311,9 +311,10 @@ export class Store {
 
   removals() {
     return this.db.prepare(`SELECT r.id,r.decision_id AS decisionId,r.batch_id AS batchId,a.platform,
-      r.target_key AS targetKey,r.profile_url AS profileUrl,r.state,r.attempt,r.started_at AS startedAt,
+      r.target_key AS targetKey,r.profile_url AS profileUrl,c.display_name AS displayName,c.handle,r.state,r.attempt,r.started_at AS startedAt,
       r.completed_at AS completedAt,r.result,r.error,r.retry_after_ms AS retryAfterMs,b.execute_after_ms AS executeAfterMs
-      FROM removals r JOIN accounts a ON a.id=r.account_id LEFT JOIN batches b ON b.id=r.batch_id ORDER BY r.id DESC`).all();
+      FROM removals r JOIN accounts a ON a.id=r.account_id JOIN decisions d ON d.id=r.decision_id
+      JOIN connections c ON c.id=d.connection_id LEFT JOIN batches b ON b.id=r.batch_id ORDER BY r.id DESC`).all();
   }
 }
 

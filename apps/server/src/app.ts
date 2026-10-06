@@ -45,7 +45,10 @@ export function buildApp(options: AppOptions) {
   });
 
   app.get("/api/health", async () => ({ ok: options.store.health() }));
-  app.get("/api/status", async () => ({ accounts: options.store.listAccounts(), fakeMode: options.fakeAdapters }));
+  app.get("/api/status", async () => ({
+    accounts: options.store.listAccounts(),fakeMode:options.fakeAdapters,
+    adapters:Object.fromEntries([...options.adapters].map(([platform,adapter])=>[platform,{verified:adapter.verified}]))
+  }));
   app.get("/api/deck", async (request) => {
     const query = request.query as any;
     const limit = Math.max(1,Math.min(50,Number(query.limit ?? 30)));
