@@ -1,4 +1,10 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const envFile = path.join(repoRoot, ".env");
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 function bool(name: string, fallback = false): boolean {
   const value = process.env[name];
@@ -9,7 +15,7 @@ function bool(name: string, fallback = false): boolean {
 export const config = {
   host: process.env.HOST ?? "127.0.0.1",
   port: Number(process.env.PORT ?? 3000),
-  dataDir: path.resolve(process.env.DATA_DIR ?? ".data"),
+  dataDir: path.resolve(repoRoot, process.env.DATA_DIR ?? ".data"),
   allowedLogin: process.env.ALLOWED_TAILSCALE_LOGIN ?? "",
   appOrigin: process.env.APP_ORIGIN ?? "",
   localDevBypass: bool("LOCAL_DEV_BYPASS"),

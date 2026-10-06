@@ -17,6 +17,7 @@ cp .env.example .env
 ```
 
 Set `ALLOWED_TAILSCALE_LOGIN` to the owner's exact Tailscale login and `APP_ORIGIN` to the HTTPS Serve origin. Keep `HOST=127.0.0.1`, `LOCAL_DEV_BYPASS=false`, and `FAKE_ADAPTERS=false` for normal use.
+`npm start` loads this root `.env` file automatically; existing shell environment variables take precedence.
 
 ```sh
 npm start

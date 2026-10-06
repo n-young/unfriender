@@ -10,5 +10,6 @@ test-results/
 *.sqlite-wal
 *.log
 *.tsbuildinfo
+*.swp
 .env
 .DS_Store
