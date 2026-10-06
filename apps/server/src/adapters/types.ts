@@ -25,6 +25,7 @@ export interface PlatformAdapter {
 
 export class AdapterUnavailableError extends Error {}
 export class SessionError extends Error {}
+export class PreMutationError extends Error {}
 export class AmbiguousMutationError extends Error {}
 export class RateLimitError extends Error {
   constructor(message:string,readonly retryAfterMs?:number){super(message);}

@@ -272,6 +272,25 @@ export class Store {
     });
   }
 
+  nextUnknown(nowMs:number):ClaimedRemoval|undefined{
+    return this.db.prepare(`SELECT r.id,r.decision_id AS decisionId,r.account_id AS accountId,a.platform,
+      r.acting_account_key AS actingAccountKey,r.session_generation AS sessionGeneration,
+      r.target_key AS targetKey,r.profile_url AS profileUrl,r.attempt
+      FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.state='unknown'
+      AND COALESCE(r.retry_after_ms,0)<=? ORDER BY r.id LIMIT 1`).get(nowMs) as unknown as ClaimedRemoval|undefined;
+  }
+
+  resolveUnknown(id:number,state:"already_absent"|"paused",result?:string,error?:string){
+    const changed=this.db.prepare(`UPDATE removals SET state=?,completed_at=datetime('now'),result=?,error=?,retry_after_ms=NULL
+      WHERE id=? AND state='unknown'`).run(state,result??null,error??null,id);
+    if(changed.changes===1)this.db.prepare("UPDATE batches SET state='paused' WHERE id=(SELECT batch_id FROM removals WHERE id=?) AND state='scheduled'").run(id);
+    return changed;
+  }
+
+  deferUnknown(id:number,retryAfterMs:number,error:string){
+    return this.db.prepare("UPDATE removals SET retry_after_ms=?,error=? WHERE id=? AND state='unknown'").run(retryAfterMs,error,id);
+  }
+
   completeRemoval(id: number, state: "removed"|"already_absent"|"paused"|"unknown", result?: string, error?: string) {
     const changed=this.db.prepare(`UPDATE removals SET state=?,completed_at=datetime('now'),result=?,error=?,retry_after_ms=NULL WHERE id=? AND state='executing'`)
       .run(state,result ?? null,error ?? null,id);

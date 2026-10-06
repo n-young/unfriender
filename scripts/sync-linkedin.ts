@@ -50,7 +50,7 @@ try{
       if(!match||match[1]===miniProfile.publicIdentifier)continue;
       const profileUrl=`https://www.linkedin.com/in/${match[1]}/`;
       const candidates=[item.imageAlt,item.text.split("\n")[0]??""]
-        .map(value=>value.trim().replace(/^(profile photo of|photo of)\s+/i,"").replace(/\s*[•·]\s*(1st|2nd|3rd).*$/i,""))
+        .map(value=>value.trim().replace(/^(profile picture of|profile photo of|photo of)\s+/i,"").replace(/[’']s? profile picture$/i,"").replace(/\s*[•·]\s*(1st|2nd|3rd).*$/i,""))
         .filter(value=>value.length>=2&&value.length<=120&&!/^(view|profile)$/i.test(value));
       const displayName=candidates.sort((a,b)=>a.length-b.length)[0];
       const photoUrl=/^https:\/\//.test(item.imageSrc)&&new URL(item.imageSrc).hostname.endsWith("licdn.com")?item.imageSrc:undefined;

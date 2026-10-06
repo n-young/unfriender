@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { Store, ConflictError } from "../src/store.js";
 import { FakeAdapter } from "../src/adapters/fake.js";
 import { RemovalWorker } from "../src/worker.js";
-import { RateLimitError } from "../src/adapters/types.js";
+import { PreMutationError, RateLimitError } from "../src/adapters/types.js";
 import type { Platform } from "@social-cleanup/shared";
 
 function setup(){
@@ -99,4 +99,26 @@ test("read-only rate limit backs off safely while a dispatched mutation becomes 
   mutationAdapters.get("linkedin")!.remove=async()=>{throw new RateLimitError("mutation response limited",10_000)};
   await new RemovalWorker(another,mutationAdapters,0,1_000).tick(1);
   assert.equal((another.removals() as any[])[0].state,"unknown");store.close();another.close();
+});
+
+test("a proven pre-mutation validation failure pauses instead of becoming unknown",async()=>{
+  const store=setup();const card=(store.deck(1) as any[])[0];
+  const decision=store.decide({operationId:"12111111-1111-4111-8111-111111111111",connectionId:card.id,version:card.version,kind:"remove"});
+  store.createBatch("13111111-1111-4111-8111-111111111111",[decision.id],0,0);
+  const adapters=new Map<Platform,FakeAdapter>();for(const platform of ["linkedin","facebook","instagram"] as const)adapters.set(platform,new FakeAdapter(platform,2));
+  adapters.get("linkedin")!.remove=async()=>{throw new PreMutationError("target validation failed before click")};
+  await new RemovalWorker(store,adapters,0).tick(1);
+  const removal=(store.removals() as any[])[0];assert.equal(removal.state,"paused");assert.match(removal.error,/before click/);store.close();
+});
+
+test("unknown work is reconciled read-only before another mutation",async()=>{
+  const store=setup();const [first,second]=store.deck(2) as any[];
+  const decisions=[first,second].map((card,index)=>store.decide({operationId:`${index+2}4111111-1111-4111-8111-111111111111`,connectionId:card.id,version:card.version,kind:"remove"}));
+  store.createBatch("26111111-1111-4111-8111-111111111111",decisions.map(item=>item.id),0,0);
+  store.claimNext(1);store.pauseStaleOnStartup();
+  const adapters=new Map<Platform,FakeAdapter>();for(const platform of ["linkedin","facebook","instagram"] as const)adapters.set(platform,new FakeAdapter(platform,2));
+  await new RemovalWorker(store,adapters,0).tick(2);
+  assert.deepEqual((store.removals() as any[]).map(item=>item.state).sort(),["paused","paused"]);
+  assert.match((store.removals() as any[]).find(item=>item.error?.includes("reconciliation"))?.error??"",/reconciliation/);
+  store.close();
 });

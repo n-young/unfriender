@@ -3,7 +3,7 @@ import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
 import { z } from "zod";
 import type { Platform } from "@social-cleanup/shared";
-import { AdapterUnavailableError, AmbiguousMutationError, RateLimitError, SessionError, type PlatformAdapter } from "./types.js";
+import { AdapterUnavailableError, AmbiguousMutationError, PreMutationError, RateLimitError, SessionError, type PlatformAdapter } from "./types.js";
 
 const SnapshotSchema=z.object({
   version:z.literal(1),capturedAt:z.string(),complete:z.boolean(),
@@ -12,6 +12,22 @@ const SnapshotSchema=z.object({
 });
 type Snapshot=z.infer<typeof SnapshotSchema>;
 type SnapshotRelationship=Snapshot["relationships"][number];
+
+export function normalizedNameTokens(value:string){
+  return value
+    .replace(/^(profile picture of|profile photo of|photo of)\s+/i,"")
+    .replace(/[’']s? profile picture$/i,"")
+    .normalize("NFKD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim().split(/\s+/).filter(Boolean);
+}
+
+export function targetNameMatches(expected:string,actual:string){
+  const wanted=normalizedNameTokens(expected),seen=normalizedNameTokens(actual);
+  if(!wanted.length||!seen.length)return false;
+  const tokenMatches=(left:string,right:string)=>left===right||(left.length===1&&right.startsWith(left))||(right.length===1&&left.startsWith(right));
+  return wanted.every(token=>seen.some(candidate=>tokenMatches(token,candidate)))
+    ||seen.every(token=>wanted.some(candidate=>tokenMatches(token,candidate)));
+}
 
 export class BrowserAdapter implements PlatformAdapter {
   readonly verified=true;
@@ -59,13 +75,16 @@ export class BrowserAdapter implements PlatformAdapter {
     for(const candidate of candidates){const matches=await this.visible(candidate);if(matches.length===1)return matches[0]!;if(matches.length>1)throw new SessionError(`${description} is not unique`);}
     throw new SessionError(`${description} was not found`);
   }
-  private normalizedName(value:string){return value.replace(/[’']s profile picture$/i,"").trim().toLowerCase();}
   private async verifyTargetPage(page:Page,target:SnapshotRelationship){
     const actual=new URL(page.url()),expected=new URL(target.profileUrl);
     if(actual.hostname!==expected.hostname||actual.pathname.replace(/\/$/,"").toLowerCase()!==expected.pathname.replace(/\/$/,"").toLowerCase())throw new SessionError("target profile redirected to a different profile path");
-    const wanted=this.normalizedName(target.displayName);
     const headings=await page.locator("h1,h2").allInnerTexts();
-    if(!headings.some(heading=>this.normalizedName(heading).includes(wanted)))throw new SessionError("target profile heading does not match the immutable removal snapshot");
+    if(this.platform==="instagram"){
+      const handle=target.handle?.replace(/^@/,"").toLowerCase();
+      if(!handle||!headings.some(heading=>heading.replace(/^@/,"").trim().toLowerCase()===handle))throw new SessionError("Instagram profile handle does not match the immutable removal snapshot");
+      return;
+    }
+    if(!headings.some(heading=>targetNameMatches(target.displayName,heading)))throw new SessionError("target profile heading does not match the immutable removal snapshot");
   }
   private async openLinkedInRemoval(page:Page){
     const more=await this.oneVisible([page.getByRole("button",{name:/^more actions$/i}),page.getByRole("button",{name:/^more$/i})],"LinkedIn More control");
@@ -141,8 +160,9 @@ export class BrowserAdapter implements PlatformAdapter {
     }
   }
   async remove(targetKey:string){
-    const target=this.target(targetKey),page=await this.goto(target.profileUrl);await this.verifyTargetPage(page,target);
+    let dispatched=false;
     try{
+      const target=this.target(targetKey),page=await this.goto(target.profileUrl);await this.verifyTargetPage(page,target);
       if(this.platform==="instagram"){
         const following=page.getByText("Following",{exact:true}).locator("xpath=ancestor::button[1]");
         if((await this.visible(following)).length!==1)throw new Error("Instagram Following control is not unique");
@@ -150,18 +170,23 @@ export class BrowserAdapter implements PlatformAdapter {
         const dialog=page.locator("[role=dialog]");
         const unfollow=dialog.getByText("Unfollow",{exact:true}).locator("xpath=ancestor::*[@role='button'][1]");
         if((await this.visible(dialog)).length!==1||(await this.visible(unfollow)).length!==1)throw new Error("Instagram Unfollow confirmation is not unique");
+        dispatched=true;
         await unfollow.click();
       }else if(this.platform==="facebook"){
-        const action=await this.openFacebookRemoval(page);await action.click();await page.waitForTimeout(600);
+        const action=await this.openFacebookRemoval(page);dispatched=true;await action.click();await page.waitForTimeout(600);
         const dialog=page.getByRole("dialog");
         if((await this.visible(dialog)).length){const confirm=await this.oneVisible([dialog.getByRole("button",{name:/^confirm$/i}),dialog.getByRole("button",{name:/^unfriend$/i})],"Facebook final confirmation");await confirm.click();}
       }else{
         const action=await this.openLinkedInRemoval(page);await action.click();await page.waitForTimeout(600);
         const dialog=page.getByRole("dialog");
-        const confirm=await this.oneVisible([dialog.getByRole("button",{name:/^remove$/i}),dialog.getByRole("button",{name:/^remove connection$/i})],"LinkedIn final Remove control");await confirm.click();
+        const confirm=await this.oneVisible([dialog.getByRole("button",{name:/^remove$/i}),dialog.getByRole("button",{name:/^remove connection$/i})],"LinkedIn final Remove control");dispatched=true;await confirm.click();
       }
       await page.waitForTimeout(1_500);await this.persist();
-    }catch(error){throw new AmbiguousMutationError(error instanceof Error?error.message:String(error),{cause:error});}
+    }catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      if(!dispatched)throw new PreMutationError(message,{cause:error});
+      throw new AmbiguousMutationError(message,{cause:error});
+    }
   }
   async disconnect(){await this.context?.close();await this.browser?.close();this.context=undefined;this.browser=undefined;this.page=undefined;this.instagramHeaders=undefined;}
 }
