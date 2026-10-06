@@ -35,7 +35,9 @@ The normal always-on deployment is the checked-in Compose stack:
 ./deployment/manage.sh status
 ```
 
-It builds `social-cleanup-app:local`, publishes only `127.0.0.1:3000`, persists session/database state in the ignored `.data/` directory, runs with a read-only root filesystem and dropped Linux capabilities, and exposes a container-local health check. Dockge can start, stop, rebuild, and inspect this same `compose.yaml`; it does not own a second copy of the stack.
+It builds `social-cleanup-app:local`, publishes only `127.0.0.1:3000`, persists session/database state in the ignored `.data/` directory, runs with a read-only root filesystem and dropped Linux capabilities, and exposes a container-local health check.
+
+The existing Dockge instance deliberately does not mount `~/Programming`: its Docker-socket access makes every added host mount highly privileged. A runtime-only copy of `deployment/dockge.compose.yaml` can instead live inside Dockge's existing stacks directory with its own private `.env` and `data/`. Dockge can start, stop, recreate, and inspect the local image without reading the source tree. Rebuild `social-cleanup-app:local` from this repository before recreating the Dockge stack after a code change.
 
 Headed platform login remains a host-side command (`npm run login -- <platform>`), because a Dockge-managed container has no Mac desktop session. The resulting ignored `.data/` directory is mounted into the app container. Real adapters remain fail-closed until their API spike is verified.
 
