@@ -1,0 +1,37 @@
+name: social-cleanup
+
+services:
+  app:
+    build:
+      context: .
+    image: social-cleanup-app:local
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATA_DIR: /data
+      CONTAINERIZED: "true"
+    init: true
+    ports:
+      - "127.0.0.1:${SOCIAL_CLEANUP_PORT:-3000}:3000"
+    volumes:
+      - ./.data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)throw Error(r.status)})"
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

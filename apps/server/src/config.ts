@@ -24,8 +24,10 @@ export const config = {
   mutationIntervalMs: Number(process.env.MUTATION_INTERVAL_MS ?? 3_000)
 };
 
-if (config.host !== "127.0.0.1" && config.host !== "::1") {
-  throw new Error("HOST must be localhost; expose the app only through Tailscale Serve");
+const containerized = bool("CONTAINERIZED");
+const validHost = config.host === "127.0.0.1" || config.host === "::1" || (containerized && config.host === "0.0.0.0");
+if (!validHost) {
+  throw new Error("HOST must be localhost, except 0.0.0.0 inside the loopback-published container");
 }
 if (!config.localDevBypass && (!config.allowedLogin || !config.appOrigin)) {
   throw new Error("ALLOWED_TAILSCALE_LOGIN and APP_ORIGIN are required outside local development");

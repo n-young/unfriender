@@ -22,6 +22,7 @@ export function buildApp(options: AppOptions) {
   const app = Fastify({ logger: true, trustProxy: false });
   app.addHook("onRequest", async (request, reply) => {
     const isLoopback = request.ip === "127.0.0.1" || request.ip === "::1";
+    if (request.method === "GET" && request.url === "/api/health" && isLoopback) return;
     if (!(options.localDevBypass && isLoopback)) {
       if (request.headers["tailscale-user-login"] !== options.allowedLogin) return reply.code(401).send({error:"unexpected Tailscale identity"});
     }
@@ -41,6 +42,7 @@ export function buildApp(options: AppOptions) {
     return reply.code(500).send({error:"internal error"});
   });
 
+  app.get("/api/health", async () => ({ ok: options.store.health() }));
   app.get("/api/status", async () => ({ accounts: options.store.listAccounts(), fakeMode: options.fakeAdapters }));
   app.get("/api/deck", async (request) => {
     const query = request.query as any;

@@ -26,6 +26,10 @@ export class Store {
 
   close() { this.db.close(); }
 
+  health() {
+    return (this.db.prepare("SELECT 1 AS ok").get() as {ok:number}).ok === 1;
+  }
+
   private migrate() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS accounts (

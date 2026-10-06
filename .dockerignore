@@ -1,0 +1,10 @@
+.git
+.gitignore
+.data
+.env
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+*.log
+*.swp
