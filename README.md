@@ -61,7 +61,7 @@ Then open `http://127.0.0.1:3000`. Fake mode is explicit in `/api/status`; it is
 
 ## Account profiles
 
-Install Chromium once if Playwright requests it, then run on the computer:
+The login helper uses an installed Google Chrome on macOS with a dedicated profile. On other systems, install Playwright Chromium once if requested with `npx playwright install chromium`, then run on the computer:
 
 ```sh
 npm run login -- linkedin
