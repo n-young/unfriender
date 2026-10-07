@@ -84,7 +84,7 @@ export class RemovalWorker {
       }
       else if (error instanceof AmbiguousMutationError || mutationDispatched) this.store.completeRemoval(job.id,"unknown",undefined,message);
       else if (error instanceof SessionError || error instanceof AdapterUnavailableError) this.store.completeRemoval(job.id,"paused",undefined,message);
-      else this.store.completeRemoval(job.id,"unknown",undefined,message);
+      else this.store.completeRemoval(job.id,"paused",undefined,message);
     } finally {
       this.working = false;
       this.nextMutationAt=Math.max(this.nextMutationAt,now+this.intervalMs);

@@ -111,6 +111,16 @@ test("a proven pre-mutation validation failure pauses instead of becoming unknow
   const removal=(store.removals() as any[])[0];assert.equal(removal.state,"paused");assert.match(removal.error,/before click/);store.close();
 });
 
+test("an unexpected read-only preflight failure pauses without claiming an ambiguous mutation",async()=>{
+  const store=setup();const card=(store.deck(1) as any[])[0];
+  const decision=store.decide({operationId:"14111111-1111-4111-8111-111111111111",connectionId:card.id,version:card.version,kind:"remove"});
+  store.createBatch("15111111-1111-4111-8111-111111111111",[decision.id],0,0);
+  const adapters=new Map<Platform,FakeAdapter>();for(const platform of ["linkedin","facebook","instagram"] as const)adapters.set(platform,new FakeAdapter(platform,2));
+  adapters.get("linkedin")!.checkSession=async()=>{throw new Error("browser response timed out")};
+  await new RemovalWorker(store,adapters,0).tick(1);
+  const removal=(store.removals() as any[])[0];assert.equal(removal.state,"paused");assert.match(removal.error,/timed out/);store.close();
+});
+
 test("unknown work is reconciled read-only before another mutation",async()=>{
   const store=setup();const [first,second]=store.deck(2) as any[];
   const decisions=[first,second].map((card,index)=>store.decide({operationId:`${index+2}4111111-1111-4111-8111-111111111111`,connectionId:card.id,version:card.version,kind:"remove"}));
@@ -138,4 +148,22 @@ test("retry all schedules every paused removal bound to the current sessions",()
   store.createBatch("43111111-1111-4111-8111-111111111111",decisions.map(item=>item.id),0,0);store.pauseStaleOnStartup();
   const result=store.retryAllPaused(200,10);assert.deepEqual(result,{count:3,skipped:0,executeAfterMs:210});
   assert.deepEqual((store.removals() as any[]).map(item=>item.state),["scheduled","scheduled","scheduled"]);store.close();
+});
+
+test("explicit resume rebinds an unchanged account to its current session generation",()=>{
+  const store=setup();const card=(store.deck(1) as any[])[0];
+  const decision=store.decide({operationId:"50111111-1111-4111-8111-111111111111",connectionId:card.id,version:card.version,kind:"remove"});
+  store.createBatch("51111111-1111-4111-8111-111111111111",[decision.id],0,0);store.pauseStaleOnStartup();
+  store.connectAccount("linkedin","owner-linkedin");
+  const row=(store.removals() as any[])[0];assert.equal(row.retryable,1);
+  store.resumeRemoval(row.id,300,10);const claimed=store.claimNext(310)!;
+  assert.equal(store.accountMatches(claimed.accountId,claimed.actingAccountKey,claimed.sessionGeneration),true);store.close();
+});
+
+test("explicit resume rejects a different acting account",()=>{
+  const store=setup();const card=(store.deck(1) as any[])[0];
+  const decision=store.decide({operationId:"52111111-1111-4111-8111-111111111111",connectionId:card.id,version:card.version,kind:"remove"});
+  store.createBatch("53111111-1111-4111-8111-111111111111",[decision.id],0,0);store.pauseStaleOnStartup();
+  store.connectAccount("linkedin","someone-else");const row=(store.removals() as any[])[0];
+  assert.equal(row.retryable,0);assert.throws(()=>store.resumeRemoval(row.id,300,10),ConflictError);store.close();
 });

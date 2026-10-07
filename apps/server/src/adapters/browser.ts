@@ -101,9 +101,10 @@ export class BrowserAdapter implements PlatformAdapter {
     const expected=this.read().account;
     if(this.platform==="linkedin"){
       const page=await this.browserPage();
-      const responsePromise=page.waitForResponse(response=>new URL(response.url()).pathname==="/voyager/api/me"&&response.ok(),{timeout:30_000});
+      const responsePromise=page.waitForResponse(response=>new URL(response.url()).pathname==="/voyager/api/me"&&response.ok(),{timeout:30_000}).then(response=>({response}),error=>({error}));
       await this.goto("https://www.linkedin.com/feed/");
-      const body=await(await responsePromise).json() as {data?:{plainId?:string}};
+      const responseResult=await responsePromise;if("error" in responseResult)throw responseResult.error;
+      const body=await responseResult.response.json() as {data?:{plainId?:string}};
       if(!body.data?.plainId||`linkedin:${body.data.plainId}`!==expected.actingAccountKey)throw new SessionError("live LinkedIn account does not match the configured account");
     }else if(this.platform==="facebook"){
       const page=await this.goto("https://www.facebook.com/me");
@@ -111,16 +112,18 @@ export class BrowserAdapter implements PlatformAdapter {
       if(!owner||`facebook:vanity:${owner}`.toLowerCase()!==expected.actingAccountKey.toLowerCase())throw new SessionError("live Facebook account does not match the configured account");
     }else{
       const page=await this.browserPage();
-      const accountResponse=page.waitForResponse(response=>response.url().includes("/api/v1/accounts/edit/web_form_data/")&&response.ok(),{timeout:30_000});
+      const accountResponse=page.waitForResponse(response=>response.url().includes("/api/v1/accounts/edit/web_form_data/")&&response.ok(),{timeout:30_000}).then(response=>({response}),error=>({error}));
       await this.goto("https://www.instagram.com/accounts/edit/");
-      const body=await(await accountResponse).json() as {form_data?:{username?:string}};
+      const accountResult=await accountResponse;if("error" in accountResult)throw accountResult.error;
+      const body=await accountResult.response.json() as {form_data?:{username?:string}};
       if(!body.form_data?.username)throw new SessionError("Instagram session is not authenticated");
-      const followingResponse=page.waitForResponse(response=>/\/api\/v1\/friendships\/\d+\/following\//.test(new URL(response.url()).pathname)&&response.ok(),{timeout:30_000});
+      const followingResponse=page.waitForResponse(response=>/\/api\/v1\/friendships\/\d+\/following\//.test(new URL(response.url()).pathname)&&response.ok(),{timeout:30_000}).then(response=>({response}),error=>({error}));
       await this.goto(`https://www.instagram.com/${encodeURIComponent(body.form_data.username)}/`);
       const following=page.getByRole("link",{name:/following/i}).first();
       if(!await following.count())throw new SessionError("Instagram acting account Following control was not found");
       await following.click();
-      const response=await followingResponse;
+      const followingResult=await followingResponse;if("error" in followingResult)throw followingResult.error;
+      const response=followingResult.response;
       const match=new URL(response.url()).pathname.match(/^\/api\/v1\/friendships\/(\d+)\/following\/$/);
       if(!match||`instagram:id:${match[1]}`!==expected.actingAccountKey)throw new SessionError("live Instagram account does not match the configured account");
       const allowed=new Set(["accept","accept-language","referer","user-agent","x-asbd-id","x-csrftoken","x-ig-app-id","x-ig-www-claim","x-requested-with","x-web-session-id"]);

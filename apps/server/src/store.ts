@@ -346,12 +346,12 @@ export class Store {
         a.session_generation AS currentGeneration,a.connection_state AS connectionState
         FROM removals r JOIN accounts a ON a.id=r.account_id WHERE r.id=? AND r.state='paused'`).get(id) as any;
       if(!row)throw new ConflictError("removal is not paused");
-      if(row.connectionState!=="connected"||row.actingAccountKey!==row.currentAccountKey||row.sessionGeneration!==row.currentGeneration){
-        throw new ConflictError("removal belongs to an older account session; cancel it and stage the relationship again");
+      if(row.connectionState!=="connected"||row.actingAccountKey!==row.currentAccountKey){
+        throw new ConflictError("removal belongs to a different account; cancel it and stage the relationship again");
       }
       const deadline=nowMs+graceMs;
       this.db.prepare(`UPDATE removals SET state='scheduled',started_at=NULL,completed_at=NULL,result=NULL,
-        error=NULL,retry_after_ms=NULL,execute_after_ms=? WHERE id=?`).run(deadline,id);
+        error=NULL,retry_after_ms=NULL,execute_after_ms=?,session_generation=? WHERE id=?`).run(deadline,row.currentGeneration,id);
       if(row.batchId)this.db.prepare("UPDATE batches SET state='scheduled' WHERE id=?").run(row.batchId);
       return {id,executeAfterMs:deadline};
     });
@@ -360,11 +360,11 @@ export class Store {
   retryAllPaused(nowMs:number,graceMs:number){
     return this.transaction(()=>{
       const deadline=nowMs+graceMs;
-      const eligible=this.db.prepare(`SELECT r.id FROM removals r JOIN accounts a ON a.id=r.account_id
+      const eligible=this.db.prepare(`SELECT r.id,a.session_generation AS currentGeneration FROM removals r JOIN accounts a ON a.id=r.account_id
         WHERE r.state='paused' AND a.connection_state='connected'
-        AND r.acting_account_key=a.acting_account_key AND r.session_generation=a.session_generation`).all() as {id:number}[];
+        AND r.acting_account_key=a.acting_account_key`).all() as {id:number;currentGeneration:number}[];
       for(const row of eligible)this.db.prepare(`UPDATE removals SET state='scheduled',started_at=NULL,completed_at=NULL,
-        result=NULL,error=NULL,retry_after_ms=NULL,execute_after_ms=? WHERE id=? AND state='paused'`).run(deadline,row.id);
+        result=NULL,error=NULL,retry_after_ms=NULL,execute_after_ms=?,session_generation=? WHERE id=? AND state='paused'`).run(deadline,row.currentGeneration,row.id);
       this.db.prepare(`UPDATE batches SET state='scheduled' WHERE id IN
         (SELECT DISTINCT batch_id FROM removals WHERE state='scheduled' AND batch_id IS NOT NULL)`).run();
       const total=Number((this.db.prepare("SELECT COUNT(*) AS count FROM removals WHERE state='paused'").get() as {count:number}).count);
@@ -378,7 +378,7 @@ export class Store {
       r.completed_at AS completedAt,r.result,r.error,r.retry_after_ms AS retryAfterMs,
       COALESCE(r.execute_after_ms,b.execute_after_ms) AS executeAfterMs,
       CASE WHEN r.state='paused' AND a.connection_state='connected' AND r.acting_account_key=a.acting_account_key
-        AND r.session_generation=a.session_generation THEN 1 ELSE 0 END AS retryable
+        THEN 1 ELSE 0 END AS retryable
       FROM removals r JOIN accounts a ON a.id=r.account_id JOIN decisions d ON d.id=r.decision_id
       JOIN connections c ON c.id=d.connection_id LEFT JOIN batches b ON b.id=r.batch_id ORDER BY r.id DESC`).all();
   }
